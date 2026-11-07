@@ -54,6 +54,7 @@ var was_night: bool = false
 
 # ---------------------------------------------------------------- setup
 func build_world() -> void:
+	add_to_group("world")
 	gen = WorldGen.new()
 	gen.build_all()
 	Vehicle.surface_world = gen
@@ -238,6 +239,8 @@ func start_menu() -> void:
 	traffic.player_vehicle = null
 	audio.set_music("menu")
 
+var tilt: TiltSteer = TiltSteer.new()
+
 func start_game(load_save: bool) -> void:
 	if load_save:
 		if not Game.load_game():
@@ -303,6 +306,7 @@ func _begin_session() -> void:
 	Game.autosave_timer = 0.0
 	loading_progress.emit(1.0, "Ready")
 	running = true
+	tilt_recalibrate()
 	audio.set_music("drive")
 	Game.notify.emit("Welcome to Drive Beyond", "info")
 
@@ -477,7 +481,24 @@ func active_route() -> PackedVector3Array:
 
 # ---------------------------------------------------------------- input / physics
 func ui_blocking(b: bool) -> void:
+	var was: bool = ui_open
 	ui_open = b
+	if was and not b:
+		tilt_recalibrate()   # resume from pause/menu: current pose becomes neutral
+
+## True when tilt steering should drive the car (setting on and a sensor, or a test override).
+func tilt_active() -> bool:
+	if not bool(Game.settings.get("tilt_steer", false)):
+		return false
+	return Game.is_mobile or tilt.override_gravity != null
+
+func tilt_recalibrate() -> void:
+	tilt.calibrate()
+	tilt.reset()
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_RESUMED or what == NOTIFICATION_APPLICATION_FOCUS_IN:
+		tilt_recalibrate()
 
 func _input(ev: InputEvent) -> void:
 	if not running or ui_open:
@@ -526,15 +547,11 @@ func _handle_input(dt: float) -> void:
 		try_exit_vehicle()
 	if mode == "drive" and player_car:
 		var steer: float = Input.get_axis("steer_left", "steer_right")
-		if bool(Game.settings.get("tilt_steer", false)) and Game.is_mobile:
-			var acc: Vector3 = Input.get_accelerometer()
-			var t: float = clampf(acc.y / 5.5, -1.0, 1.0)
-			if bool(Game.settings.get("tilt_invert", false)):
-				t = -t
-			if absf(t) < 0.06:
-				t = 0.0
-			steer = t
-		steer = clampf(steer * float(Game.settings.get("steer_sens", 1.0)), -1.0, 1.0)
+		if tilt_active():
+			# Tilt mode: gravity-vector roll -> smoothed [-1,1]; own sensitivity (not steer_sens)
+			steer = tilt.update(dt, float(Game.settings.get("tilt_sens", 1.0)), float(Game.settings.get("tilt_dead", 3.0)), bool(Game.settings.get("tilt_invert", false)))
+		else:
+			steer = clampf(steer * float(Game.settings.get("steer_sens", 1.0)), -1.0, 1.0)
 		var thr: float = Input.get_action_strength("accelerate")
 		var brk: float = Input.get_action_strength("brake")
 		var hb: bool = Input.is_action_pressed("handbrake")

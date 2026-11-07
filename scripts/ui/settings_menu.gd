@@ -131,13 +131,36 @@ func _audio() -> void:
 	_row("Environment", _slider("environment", 0.0, 1.0, 0.05))
 	_row("Effects", _slider("effects", 0.0, 1.0, 0.05))
 
+var tilt_bar: ProgressBar = null
+
+func _process(_d: float) -> void:
+	if tilt_bar and is_instance_valid(tilt_bar):
+		var w: Node = get_tree().get_first_node_in_group("world")
+		if w and w.get("tilt") != null:
+			var t: TiltSteer = w.tilt
+			var v: float = t.update(_d, float(Game.settings.get("tilt_sens", 1.0)), float(Game.settings.get("tilt_dead", 3.0)), bool(Game.settings.get("tilt_invert", false)))
+			tilt_bar.value = v
+
 func _controls() -> void:
-	_row("Steering sensitivity", _slider("steer_sens", 0.5, 1.5, 0.05))
+	_row("Button steering sensitivity", _slider("steer_sens", 0.5, 1.5, 0.05))
 	_row("Camera sensitivity", _slider("camera_sens", 0.3, 2.0, 0.1))
 	_row("Mouse sensitivity (on foot)", _slider("mouse_sens", 0.3, 2.0, 0.1))
 	if Game.is_mobile or true:
-		_row("Tilt steering (phone)", _toggle("tilt_steer"))
+		_row("Tilt steering (phone)", _toggle("tilt_steer"), "replaces arrows")
+		_row("Tilt sensitivity", _slider("tilt_sens", 0.4, 2.5, 0.05), "higher = less tilt")
+		_row("Tilt dead zone (deg)", _slider("tilt_dead", 0.0, 10.0, 0.5))
 		_row("Invert tilt", _toggle("tilt_invert"))
+		_row("Calibrate tilt", UIKit.button("Set current pose as straight", func() -> void:
+			var w: Node = get_tree().get_first_node_in_group("world")
+			if w and w.has_method("tilt_recalibrate"):
+				w.tilt_recalibrate()
+			Game.notify.emit("Tilt calibrated", "good"), 46))
+		tilt_bar = ProgressBar.new()
+		tilt_bar.min_value = -1.0
+		tilt_bar.max_value = 1.0
+		tilt_bar.show_percentage = false
+		tilt_bar.custom_minimum_size = Vector2(300, 22)
+		_row("Live tilt (test)", tilt_bar, "needs phone sensor")
 		_row("Touch button opacity", _slider("touch_opacity", 0.2, 1.0, 0.05))
 		_row("Show touch controls", _toggle("show_touch"), "for desktop testing")
 		_row("Vibration", _toggle("haptics"))

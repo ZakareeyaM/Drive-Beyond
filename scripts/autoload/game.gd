@@ -30,7 +30,7 @@ var story_stage: int = 0
 var garage_slots: int = 4
 var player_pos: Vector3 = Vector3.ZERO
 var player_rot: float = 0.0
-var time_of_day: float = 17.2           # hours
+var time_of_day: float = 9.0           # hours
 var weather_state: String = "clear"
 var stats: Dictionary = {"distance": 0.0, "races_won": 0, "drift_best": 0.0, "top_speed": 0.0, "play_time": 0.0, "busted": 0}
 var has_save: bool = false
@@ -45,7 +45,7 @@ const DEFAULT_SETTINGS := {
 	"master": 0.9, "music": 0.55, "engine": 0.8, "environment": 0.7, "effects": 0.8,
 	"mouse_sens": 1.0, "steer_sens": 1.0, "camera_sens": 1.0, "tilt_steer": false, "touch_opacity": 0.75,
 	"handling": "arcade", "units": "kmh", "minimap_size": 1.0, "minimap_rotate": true, "cam_distance": 1.0,
-	"cam_shake": true, "haptics": true, "keys": {}, "headlights_auto": true, "tilt_invert": false, "show_touch": false,
+	"cam_shake": true, "haptics": true, "keys": {}, "headlights_auto": true, "tilt_invert": false, "tilt_sens": 1.0, "tilt_dead": 3.0, "show_touch": false,
 }
 const QUALITY_PRESETS := {
 	"Low":    {"shadows": false, "aa": 0, "view_distance": 2, "texture_quality": 0, "traffic_density": 0.5, "reflections": false, "res_scale": 0.7},
@@ -81,7 +81,7 @@ func reset_progress() -> void:
 	garage_slots = 4
 	player_pos = Vector3.ZERO
 	player_rot = 0.0
-	time_of_day = 17.2
+	time_of_day = 9.0
 	weather_state = "clear"
 	stats = {"distance": 0.0, "races_won": 0, "drift_best": 0.0, "top_speed": 0.0, "play_time": 0.0, "busted": 0}
 	wanted_level = 0
@@ -494,7 +494,7 @@ func load_game() -> bool:
 	if pp is Array and pp.size() == 3:
 		player_pos = Vector3(float(pp[0]), float(pp[1]), float(pp[2]))
 	player_rot = float(d.get("player_rot", 0.0))
-	time_of_day = float(d.get("time_of_day", 17.2))
+	time_of_day = float(d.get("time_of_day", 9.0))
 	weather_state = String(d.get("weather", "clear"))
 	var st: Variant = d.get("stats", {})
 	if st is Dictionary:

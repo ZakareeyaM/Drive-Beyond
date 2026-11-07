@@ -49,3 +49,10 @@ All keys can be remapped in Settings → Controls.
 ## Project layout
 `scripts/autoload` (Game, Data) · `scripts/world` (generation, streaming, weather, world orchestrator) · `scripts/vehicles` · `scripts/traffic` · `scripts/police` · `scripts/missions` + `data/missions/missions.json` · `scripts/audio` · `scripts/ui` · `shaders` · `tests` (dev-only checks).
 Missions are plain JSON — add your own entries to `data/missions/missions.json`.
+
+## Update notes (landscape / tilt / day-night / vehicles)
+- **Landscape**: `display/window/handheld/orientation=4` (sensor landscape, both landscape directions, never portrait). Previously `6` (full sensor) let Android rotate to portrait. UI uses a 1280x720 base with `canvas_items` + `expand`, so 16:9 and 20:9 phones get extra width.
+- **Tilt steering** (`scripts/player/tilt_steer.gd`): uses the gravity vector (accelerometer fallback), not the raw gyroscope. Roll = atan2(g.x, -g.y) in screen space, calibrated neutral, dead zone, sensitivity, smoothing, flat-phone guard. Sensors are enabled in `project.godot`. Settings > Controls has toggle, sensitivity, dead zone, invert, calibrate and a live bar. In-game TILT / CAL buttons. Neutral is re-captured at session start and on every resume.
+- **Day/night**: sun + clear blue sky by day; moon, stars and black sky at night (game starts at 09:00).
+- **Vehicles**: wheels now visible on both faces and no longer buried in narrow bodies; lamps seated in bezels; rear valance, tucked exhausts, mirror stalks, thinner door seams.
+- Needs on-device testing: real sensor sign/feel on Tecno Spark 7, performance on device.

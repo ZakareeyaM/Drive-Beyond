@@ -53,7 +53,7 @@ func _ready() -> void:
 		tab_btns[t[0]] = b
 	content = VBoxContainer.new()
 	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var sc: ScrollContainer = UIKit.scroll(content, Vector2(470, 470))
+	var sc: ScrollContainer = UIKit.scroll(content, Vector2(470, 300))
 	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	lv.add_child(sc)
 	lv.add_child(UIKit.accent_button("Leave Garage", _close, 56))

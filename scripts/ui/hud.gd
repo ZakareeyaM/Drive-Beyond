@@ -205,6 +205,7 @@ func _draw_mission(vs: Vector2) -> void:
 		_txt(UIKit.fmt_time(t), Vector2(x + w - 110, 52), 34, col, HORIZONTAL_ALIGNMENT_RIGHT, 100.0)
 
 func _draw_toasts(vs: Vector2) -> void:
+	var rx: float = vs.x - 24.0 - (130.0 if (Game.is_mobile or bool(Game.settings.get("show_touch", false))) else 0.0)
 	var y: float = vs.y * 0.42
 	for i in range(toasts.size() - 1, -1, -1):
 		var t: Dictionary = toasts[i]
@@ -212,9 +213,9 @@ func _draw_toasts(vs: Vector2) -> void:
 		var col: Color = KIND_COLOR.get(t["kind"], Color.WHITE)
 		col.a = a
 		var tw: float = font.get_string_size(String(t["text"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 22).x + 28.0
-		draw_rect(Rect2(vs.x - 24.0 - tw, y - 24, tw, 34), Color(0, 0, 0, 0.5 * a))
-		draw_rect(Rect2(vs.x - 24.0 - 4, y - 24, 4, 34), Color(col.r, col.g, col.b, a))
-		draw_string(font, Vector2(vs.x - 24.0 - tw + 12, y), String(t["text"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 22, col)
+		draw_rect(Rect2(rx - tw, y - 24, tw, 34), Color(0, 0, 0, 0.5 * a))
+		draw_rect(Rect2(rx - 4, y - 24, 4, 34), Color(col.r, col.g, col.b, a))
+		draw_string(font, Vector2(rx - tw + 12, y), String(t["text"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 22, col)
 		y += 40.0
 
 func _mm_point(p: Vector3, center: Vector3, f: Vector2, scale_px: float, rot: bool) -> Vector2:

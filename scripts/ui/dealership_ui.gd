@@ -34,7 +34,7 @@ func _ready() -> void:
 	lv.add_child(UIKit.title_bar("MARCUS MOTORS", "Dealership"))
 	list_box = VBoxContainer.new()
 	list_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var sc: ScrollContainer = UIKit.scroll(list_box, Vector2(400, 480))
+	var sc: ScrollContainer = UIKit.scroll(list_box, Vector2(400, 300))
 	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	lv.add_child(sc)
 	lv.add_child(UIKit.accent_button("Leave", func() -> void: closed.emit(), 56))

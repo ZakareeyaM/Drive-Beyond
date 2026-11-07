@@ -152,7 +152,7 @@ func show_car(vid: String, custom: Dictionary, upg: Dictionary = {}) -> void:
 	car_root = root
 	head_mat = m["head_mat"]
 	head_mat.emission_energy_multiplier = 3.0 if lights_on else 0.35
-	dist = 7.5 + float(spec["L"]) * 0.55
+	dist = 9.6 + float(spec["L"]) * 0.7
 	target_center = Vector3(0, float(spec["roof"]) * 0.45, 0)
 	_update_cam()
 

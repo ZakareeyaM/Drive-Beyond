@@ -30,7 +30,7 @@ func _ready() -> void:
 		var b: Dictionary = CarBuilder.build(vid, custom)
 		var n: Node3D = b["root"]
 		n.position = Vector3((i % 5) * 7.0 - 14.0, 0, (i / 5) * 8.0)
-		n.rotation.y = deg_to_rad(-35)
+		n.rotation.y = deg_to_rad(-35) if OS.get_cmdline_user_args().size() < 2 else deg_to_rad(float(OS.get_cmdline_user_args()[1]))
 		add_child(n)
 		var v: Dictionary = Data.vehicle(vid)
 		for sx in [-1.0, 1.0]:
@@ -47,7 +47,7 @@ func _ready() -> void:
 	if ua.size() >= 1:
 		var k: int = int(ua[0])
 		var c: Vector3 = Vector3((k % 5) * 7.0 - 14.0, 0.6, (k / 5) * 8.0)
-		cam.position = c + Vector3(5.2, 1.9, 5.2)
+		cam.position = c + (Vector3(5.2, 1.9, 5.2) if ua.size() < 2 else Vector3(0.0, 1.6, 7.0))
 		look = c
 	add_child(cam)
 	cam.look_at(look)
@@ -55,5 +55,5 @@ func _ready() -> void:
 func _process(_d: float) -> void:
 	frames += 1
 	if frames == 30:
-		get_viewport().get_texture().get_image().save_png("/tmp/gd/car_%s.png" % (OS.get_cmdline_user_args()[0] if OS.get_cmdline_user_args().size() > 0 else "all"))
+		get_viewport().get_texture().get_image().save_png("/tmp/gd/car_%s%s.png" % [(OS.get_cmdline_user_args()[0] if OS.get_cmdline_user_args().size() > 0 else "all"), ("_" + OS.get_cmdline_user_args()[1]) if OS.get_cmdline_user_args().size() > 1 else ""])
 		get_tree().quit()

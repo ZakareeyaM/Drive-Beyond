@@ -191,6 +191,19 @@ func _run_cmd(c: String) -> void:
 		"mreport": print("MISSION ", world.missions.hud_info(), " opp=", world.missions.opp.size(), " route=", world.missions.route.size())
 		"preport": print("POLICE lvl=%d units=%d heat=%.2f near=%.0f heli=%s blocks=%d" % [world.police.level, world.police.units.size(), world.police.heat, world.police.nearest_cop, world.police.heli != null, world.police.roadblocks.size()])
 		"cam": world.cam.cycle_mode()
+		"tilt_on": Game.settings["tilt_steer"] = true
+		"tilt_off": Game.settings["tilt_steer"] = false
+		"tilt_cal":
+			world.tilt.override_gravity = Vector3(0, -9.8, 0)
+			world.tilt_recalibrate()
+		"tilt_r": world.tilt.override_gravity = Vector3(9.8 * sin(deg_to_rad(20)), -9.8 * cos(deg_to_rad(20)), 0)
+		"tilt_l": world.tilt.override_gravity = Vector3(-9.8 * sin(deg_to_rad(20)), -9.8 * cos(deg_to_rad(20)), 0)
+		"tilt_n": world.tilt.override_gravity = Vector3(0, -9.8, 0)
+		"tilt_flat": world.tilt.override_gravity = Vector3(0, -0.3, -9.8)
+		"restart":
+			world.shutdown_session()
+			_start(false)
+		"tilt_report": print("TILT out=%.3f car_steer_cur=%.3f car_steering=%.3f active=%s" % [world.tilt.output, world.player_car.steer_cur, world.player_car.steering, world.tilt_active()])
 		"gas": Input.action_press("accelerate")
 		"left": Input.action_press("steer_left", 0.4)
 		"nogas": Input.action_release("accelerate")

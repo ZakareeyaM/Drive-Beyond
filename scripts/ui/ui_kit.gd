@@ -59,7 +59,8 @@ static func button(text: String, cb: Callable, min_h: float = 54.0, min_w: float
 	var b := Button.new()
 	b.text = text
 	b.custom_minimum_size = Vector2(min_w, min_h)
-	b.pressed.connect(cb)
+	if cb.is_valid():
+		b.pressed.connect(cb)
 	b.focus_mode = Control.FOCUS_NONE
 	return b
 

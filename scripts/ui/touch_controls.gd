@@ -36,17 +36,19 @@ func _layout() -> void:
 		{"id": "brake", "a": "brake", "r": Rect2(w - 380, h - 190, 168, 170), "t": "BRAKE", "mode": "drive", "shape": "rect"},
 		{"id": "hb", "a": "handbrake", "c": Vector2(w - 330, h - 250), "rad": 46.0, "t": "HB", "mode": "drive", "shape": "circle"},
 		{"id": "nitro", "a": "nitro", "c": Vector2(w - 440, h - 235), "rad": 42.0, "t": "N2O", "mode": "drive", "shape": "circle"},
-		{"id": "cam", "a": "camera", "c": Vector2(w - 52, 290), "rad": 34.0, "t": "CAM", "mode": "drive", "shape": "circle"},
-		{"id": "lights", "a": "headlights", "c": Vector2(w - 52, 358), "rad": 34.0, "t": "LGT", "mode": "drive", "shape": "circle"},
-		{"id": "horn", "a": "horn", "c": Vector2(w - 52, 426), "rad": 34.0, "t": "HORN", "mode": "drive", "shape": "circle"},
-		{"id": "reset", "a": "reset_car", "c": Vector2(w - 124, 426), "rad": 30.0, "t": "RST", "mode": "drive", "shape": "circle"},
-		{"id": "exit", "a": "exit_vehicle", "c": Vector2(w - 124, 358), "rad": 30.0, "t": "EXIT", "mode": "drive", "shape": "circle"},
+		{"id": "cam", "a": "camera", "c": Vector2(w - 52, 300), "rad": 34.0, "t": "CAM", "mode": "drive", "shape": "circle"},
+		{"id": "lights", "a": "headlights", "c": Vector2(w - 52, 372), "rad": 34.0, "t": "LGT", "mode": "drive", "shape": "circle"},
+		{"id": "horn", "a": "horn", "c": Vector2(w - 52, 444), "rad": 34.0, "t": "HORN", "mode": "drive", "shape": "circle"},
+		{"id": "reset", "a": "reset_car", "c": Vector2(w - 130, 444), "rad": 30.0, "t": "RST", "mode": "drive", "shape": "circle"},
+		{"id": "tilt", "a": "", "c": Vector2(w - 52, 156), "rad": 30.0, "t": "TILT", "mode": "drive", "shape": "circle"},
+		{"id": "cal", "a": "", "c": Vector2(w - 130, 156), "rad": 30.0, "t": "CAL", "mode": "drive", "shape": "circle", "tilt_only": true},
+		{"id": "exit", "a": "exit_vehicle", "c": Vector2(w - 130, 372), "rad": 30.0, "t": "EXIT", "mode": "drive", "shape": "circle"},
 		# on foot
 		{"id": "jump", "a": "jump", "c": Vector2(w - 110, h - 130), "rad": 54.0, "t": "JUMP", "mode": "foot", "shape": "circle"},
 		{"id": "sprint", "a": "sprint", "c": Vector2(w - 250, h - 100), "rad": 44.0, "t": "RUN", "mode": "foot", "shape": "circle"},
 		# both
-		{"id": "interact", "a": "interact", "c": Vector2(w - 220, 330), "rad": 52.0, "t": "USE", "mode": "both", "shape": "circle", "needs_prompt": true},
-		{"id": "map", "a": "map", "c": Vector2(w - 52, 232), "rad": 30.0, "t": "MAP", "mode": "both", "shape": "circle"},
+		{"id": "interact", "a": "interact", "c": Vector2(w - 270, 290), "rad": 52.0, "t": "USE", "mode": "both", "shape": "circle", "needs_prompt": true},
+		{"id": "map", "a": "map", "c": Vector2(w - 52, 228), "rad": 30.0, "t": "MAP", "mode": "both", "shape": "circle"},
 		{"id": "pause", "a": "pause", "c": Vector2(w * 0.5 - 250, 40), "rad": 28.0, "t": "II", "mode": "both", "shape": "circle"},
 	]
 
@@ -63,6 +65,8 @@ func _active(b: Dictionary) -> bool:
 	if b["id"] == "exit" and world.player_car and world.player_car.abs_speed > 4.0:
 		return false
 	if bool(Game.settings.get("tilt_steer", false)) and b["id"] in ["steer_left", "steer_right"]:
+		return false
+	if b.get("tilt_only", false) and not bool(Game.settings.get("tilt_steer", false)):
 		return false
 	return true
 
@@ -120,6 +124,19 @@ func _press(idx: int, p: Vector2) -> void:
 		if not _active(b):
 			continue
 		if _hit(b, p):
+			if b["id"] == "tilt":
+				Game.set_setting("tilt_steer", not bool(Game.settings.get("tilt_steer", false)))
+				world.tilt_recalibrate()
+				Input.action_release("steer_left")
+				Input.action_release("steer_right")
+				Game.notify.emit("Tilt steering " + ("ON" if bool(Game.settings.get("tilt_steer", false)) else "OFF"), "info")
+				fingers[idx] = {"kind": "tap"}
+				return
+			if b["id"] == "cal":
+				world.tilt_recalibrate()
+				Game.notify.emit("Tilt calibrated - hold phone as you want 'straight'", "good")
+				fingers[idx] = {"kind": "tap"}
+				return
 			fingers[idx] = {"kind": "btn", "action": b["a"]}
 			Input.action_press(b["a"], 1.0)
 			if b["id"] == "interact":
@@ -181,6 +198,13 @@ func _draw() -> void:
 			draw_circle(c, float(b["rad"]), base)
 			draw_arc(c, float(b["rad"]), 0.0, TAU, 32, border, 3.0, true)
 			draw_string(font, c + Vector2(-float(b["rad"]), 7), String(b["t"]), HORIZONTAL_ALIGNMENT_CENTER, float(b["rad"]) * 2.0, 18, label_col)
+	if bool(Game.settings.get("tilt_steer", false)) and world.mode == "drive":
+		var by: float = get_viewport_rect().size.y - 60.0
+		var bx: float = 190.0
+		draw_rect(Rect2(bx - 140, by - 6, 280, 12), Color(1, 1, 1, 0.14 * op))
+		draw_rect(Rect2(bx - 2, by - 14, 4, 28), Color(1, 1, 1, 0.5 * op))
+		draw_circle(Vector2(bx + world.tilt.output * 140.0, by), 14.0, Color(UIKit.RED.r, UIKit.RED.g, UIKit.RED.b, 0.85 * op))
+		draw_string(font, Vector2(bx - 140, by - 24), "TILT STEERING" if world.tilt.has_sensor else "NO TILT SENSOR", HORIZONTAL_ALIGNMENT_LEFT, 280, 16, Color(1, 1, 1, 0.6 * op))
 	if joy_finger >= 0:
 		draw_circle(joy_origin, 70.0, Color(1, 1, 1, 0.1 * op))
 		draw_arc(joy_origin, 70.0, 0.0, TAU, 40, Color(1, 1, 1, 0.4 * op), 3.0, true)

@@ -108,7 +108,8 @@ static func emissive_material(col: Color, energy: float) -> StandardMaterial3D:
 	return m
 
 static func body_width_at(v: Dictionary, t: float) -> float:
-	var W: float = float(v["W"]) * 0.5
+	# never wider than the wheels can fill: keeps tyres/rims visible instead of buried in the flanks
+	var W: float = minf(float(v["W"]) * 0.5, float(v["track"]) * 0.5 + float(v["ww"]) * 0.4)
 	var f: float = 0.8 + 0.2 * smoothstep(0.0, 0.2, t)
 	f *= 1.0 - 0.16 * smoothstep(0.8, 1.0, t)
 	return W * f
@@ -149,8 +150,10 @@ static func build(vid: String, custom: Dictionary) -> Dictionary:
 	var glass := StandardMaterial3D.new()
 	glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	glass.albedo_color = Color(0.04, 0.06, 0.09, [0.35, 0.55, 0.78, 0.94][tint_i])
-	glass.metallic = 0.4
-	glass.roughness = 0.05
+	glass.metallic = 0.75
+	glass.roughness = 0.04
+	glass.emission_enabled = true
+	glass.emission = Color(0.03, 0.05, 0.08)
 	glass.cull_mode = BaseMaterial3D.CULL_BACK
 	out["glass"] = glass
 	var dark := detail_material()
@@ -232,8 +235,8 @@ static func build(vid: String, custom: Dictionary) -> Dictionary:
 		for zt in [tf, tr]:
 			var wx: float = body_width_at(v, zt) * 0.985 + 0.004
 			var cyl := CylinderMesh.new()
-			cyl.top_radius = wr + 0.09
-			cyl.bottom_radius = wr + 0.09
+			cyl.top_radius = wr + 0.05
+			cyl.bottom_radius = wr + 0.05
 			cyl.height = 0.02
 			cyl.radial_segments = 20
 			cyl.cap_top = true
@@ -248,40 +251,51 @@ static func build(vid: String, custom: Dictionary) -> Dictionary:
 		var d_front: float = -L * 0.5 + cab0 * L + 0.05
 		var d_rear: float = -L * 0.5 + cab1 * L - (0.1 if not pickup else 0.0)
 		for zz in [d_front, (d_front + d_rear) * 0.5, d_rear]:
-			_box_mi(root, dark, Vector3(side * dx, (yb + yt) * 0.5, zz), Vector3(0.012, yt - yb, 0.012))
+			_box_mi(root, dark, Vector3(side * dx, (yb + yt) * 0.5, zz), Vector3(0.006, yt - yb, 0.006))
 		_box_mi(root, chrome, Vector3(side * (dx + 0.005), yt - 0.14, (d_front + d_rear) * 0.5 - 0.35 * (d_rear - d_front) * 0.5), Vector3(0.02, 0.025, 0.14))
 		# mirrors
 		var mz: float = -L * 0.5 + (cab0 + 0.01) * L
-		_box_mi(root, paint, Vector3(side * (body_width_at(v, cab0) * 0.97 + 0.06), belt + 0.08, mz + 0.1), Vector3(0.14, 0.09, 0.07))
+		var mw: float = body_width_at(v, cab0)
+		_box_mi(root, dark, Vector3(side * (mw * 0.9 + 0.03), belt + 0.01, mz + 0.1), Vector3(0.1, 0.03, 0.04))
+		_box_mi(root, paint, Vector3(side * (mw * 0.9 + 0.09), belt + 0.05, mz + 0.1), Vector3(0.1, 0.085, 0.06))
 	# grille + lower intake
 	var gw: float = body_width_at(v, 0.02) * 1.2
 	_box_mi(root, dark, Vector3(0, belly + (hood - belly) * 0.38, -L * 0.5 + 0.02), Vector3(gw, (hood - belly) * 0.3, 0.05))
 	_box_mi(root, dark, Vector3(0, belly + 0.09, -L * 0.5 + 0.03), Vector3(gw * 1.35, 0.1, 0.05))
 	# headlights
-	var hx: float = body_width_at(v, 0.03) * 0.72
-	var hy: float = hood - (hood - belly) * 0.22
-	var hl_size := Vector3(0.36, 0.1, 0.06) * (W / 1.9)
+	var hx: float = body_width_at(v, 0.05) * 0.60
+	var hy: float = hood - (hood - belly) * 0.26
+	var hl_size := Vector3(0.30, 0.085, 0.07) * (W / 1.9)
 	var head_pos: Array = []
 	for side in [-1.0, 1.0]:
-		var hm: MeshInstance3D = _box_mi(root, head_mat, Vector3(side * hx, hy, -L * 0.5 + 0.04), hl_size)
+		# dark bezel first, lamp sits inside it and is sunk into the nose so nothing floats
+		var bz: MeshInstance3D = _box_mi(root, dark, Vector3(side * hx, hy, -L * 0.5 + 0.075), hl_size + Vector3(0.05, 0.04, -0.02))
+		bz.rotation = Vector3(0, side * 0.2, 0)
+		var hm: MeshInstance3D = _box_mi(root, head_mat, Vector3(side * hx, hy, -L * 0.5 + 0.065), hl_size)
 		hm.rotation = Vector3(0, side * 0.2, 0)
 		head_pos.append(Vector3(side * hx, hy, -L * 0.5 + 0.1))
 	out["head_pos"] = head_pos
 	# taillights
-	var tx: float = body_width_at(v, 0.97) * 0.72
-	var ty: float = trunk - (trunk - belly) * 0.2
+	var tx: float = body_width_at(v, 0.95) * 0.5
+	var ty: float = trunk - (trunk - belly) * 0.24
 	var tail_pos: Array = []
 	for side in [-1.0, 1.0]:
-		_box_mi(root, tail_mat, Vector3(side * tx, ty, L * 0.5 - 0.035), Vector3(0.38 * (W / 1.9), 0.085, 0.05))
+		# dark bezel + lamp sunk into the tail, angled to follow the rounded corner
+		var tb: MeshInstance3D = _box_mi(root, dark, Vector3(side * tx, ty, L * 0.5 - 0.075), Vector3(0.3 * (W / 1.9) + 0.04, 0.09, 0.07))
+		tb.rotation = Vector3(0, side * -0.1, 0)
+		var tl: MeshInstance3D = _box_mi(root, tail_mat, Vector3(side * tx, ty, L * 0.5 - 0.066), Vector3(0.3 * (W / 1.9), 0.06, 0.07))
+		tl.rotation = Vector3(0, side * -0.1, 0)
 		tail_pos.append(Vector3(side * tx, ty, L * 0.5 - 0.1))
 	if cat in ["Sports Car", "Supercar", "Hypercar", "Muscle Car"]:
-		_box_mi(root, tail_mat, Vector3(0, ty, L * 0.5 - 0.03), Vector3(tx * 2.0 - 0.3, 0.035, 0.04))
+		_box_mi(root, tail_mat, Vector3(0, ty, L * 0.5 - 0.06), Vector3(maxf(tx * 2.0 - 0.45, 0.1), 0.03, 0.05))
+	# dark lower rear valance (matches the front intake band) ties bumper, plate and exhausts together
+	_box_mi(root, dark, Vector3(0, belly + 0.14, L * 0.5 - 0.06), Vector3(body_width_at(v, 0.96) * 1.5, 0.2, 0.07))
 	out["tail_pos"] = tail_pos
 	# plates
 	var plate_text: String = String(custom.get("plate", "DB-001"))
 	for zsgn in [1.0, -1.0]:
 		var pz: float = zsgn * (L * 0.5 + 0.005)
-		var plate := _box_mi(root, emissive_material(Color(0.95, 0.95, 0.9), 0.15), Vector3(0, belly + 0.28 if zsgn < 0 else belly + 0.42, pz), Vector3(0.5, 0.12, 0.012))
+		var plate := _box_mi(root, emissive_material(Color(0.95, 0.95, 0.9), 0.15), Vector3(0, belly + 0.26 if zsgn < 0 else belly + 0.40, pz - zsgn * 0.03), Vector3(0.5, 0.12, 0.02))
 		var lab := Label3D.new()
 		lab.text = plate_text
 		lab.font_size = 48
@@ -299,8 +313,8 @@ static func build(vid: String, custom: Dictionary) -> Dictionary:
 		var ec := CylinderMesh.new()
 		ec.top_radius = ex_r
 		ec.bottom_radius = ex_r
-		ec.height = 0.2
-		var em := _mi(ec, chrome, root, Vector3(side * W * 0.27, belly + 0.05, L * 0.5 + 0.02))
+		ec.height = 0.16
+		var em := _mi(ec, chrome, root, Vector3(side * W * 0.25, belly + 0.09, L * 0.5 - 0.03))
 		em.rotation = Vector3(PI * 0.5, 0, 0)
 	# front/rear bumper styles
 	var bs: int = int(custom.get("bumper", 0))
@@ -398,13 +412,14 @@ static func build_wheel(vid: String, custom: Dictionary) -> MeshInstance3D:
 	var mesh := ArrayMesh.new()
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	MeshLib.add_wheel_disc(st, Vector3.ZERO, wr, ww, 22, Color(0.03, 0.03, 0.035))
+	MeshLib.add_wheel_disc(st, Vector3.ZERO, wr, ww, 22, Color(0.07, 0.07, 0.075))
 	st.commit(mesh)
 	var rst := SurfaceTool.new()
 	rst.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var rr: float = wr * (0.66 if v["cat"] != "Off-Road" else 0.56)
 	var hx: float = ww * 0.5 + 0.004
-	MeshLib.add_wheel_disc(rst, Vector3(ww * 0.06, 0, 0), rr, ww * 0.9, 20, rim_col * 0.55)
+	MeshLib.add_wheel_disc(rst, Vector3(0, 0, 0), rr, ww * 0.99, 20, rim_col.lerp(Color(0.8, 0.82, 0.86), 0.45) * 0.8)
+	var spoke_col: Color = rim_col.lerp(Color(0.85, 0.87, 0.9), 0.5)
 	var spokes: int = [5, 5, 12, 8][clampi(rim_style, 0, 3)]
 	var spoke_w: float = [0.06, 0.07, 0.022, 0.04][clampi(rim_style, 0, 3)]
 	for i in range(spokes):
@@ -413,15 +428,17 @@ static func build_wheel(vid: String, custom: Dictionary) -> MeshInstance3D:
 		var side := Vector3(0, -dir.z, dir.y)
 		var twist: float = 0.0 if rim_style != 3 else 0.35
 		var tip: Vector3 = dir * rr * 0.96 + side * twist * rr * 0.3
-		var base := Vector3(hx, 0, 0)
-		var p0: Vector3 = base + dir * rr * 0.16 - side * spoke_w
-		var p1: Vector3 = base + dir * rr * 0.16 + side * spoke_w
-		var p2: Vector3 = base + tip + side * spoke_w * 0.8
-		var p3: Vector3 = base + tip - side * spoke_w * 0.8
-		MeshLib.quad(rst, p0, p3, p2, p1, rim_col)
-		MeshLib.quad(rst, p1, p2, p3, p0, rim_col)
+		for fs in [1.0, -1.0]:
+			var base := Vector3(hx * fs, 0, 0)
+			var p0: Vector3 = base + dir * rr * 0.16 - side * spoke_w
+			var p1: Vector3 = base + dir * rr * 0.16 + side * spoke_w
+			var p2: Vector3 = base + tip + side * spoke_w * 0.8
+			var p3: Vector3 = base + tip - side * spoke_w * 0.8
+			MeshLib.quad(rst, p0, p3, p2, p1, spoke_col)
+			MeshLib.quad(rst, p1, p2, p3, p0, spoke_col)
 	# hub cap
-	MeshLib.add_wheel_disc(rst, Vector3(hx, 0, 0), rr * 0.2, 0.02, 10, rim_col)
+	for fs2 in [1.0, -1.0]:
+		MeshLib.add_wheel_disc(rst, Vector3(hx * fs2, 0, 0), rr * 0.2, 0.02, 10, spoke_col)
 	rst.commit(mesh)
 	var tyre := StandardMaterial3D.new()
 	tyre.vertex_color_use_as_albedo = true
