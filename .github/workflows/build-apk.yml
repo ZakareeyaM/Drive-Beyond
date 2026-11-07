@@ -1,0 +1,93 @@
+name: Build Android APK
+
+# Push this project to GitHub (branch main or master) and the APK is built automatically.
+# Download it from:  Actions tab -> latest run -> Artifacts -> DriveBeyond-apk
+# You can also run it by hand: Actions tab -> Build Android APK -> Run workflow.
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+env:
+  GODOT_VERSION: "4.7.0"
+
+jobs:
+  export-android:
+    name: Export Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Godot + export templates
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: ${{ env.GODOT_VERSION }}
+          use-dotnet: false
+          include-templates: true
+
+      - name: Install Android SDK components
+        run: |
+          SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          echo "SDK=$SDK" >> "$GITHUB_ENV"
+          SDKM="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          ls "$SDK" || true
+          yes | "$SDKM" --licenses > /dev/null || true
+          "$SDKM" "platform-tools" "build-tools;35.0.1" "build-tools;36.0.0" \
+                  "platforms;android-35" "platforms;android-36" \
+                  "cmake;3.10.2.4988404" "ndk;28.1.13356709" || true
+          ls "$SDK/build-tools" || true
+
+      - name: Create debug keystore and Godot editor settings
+        run: |
+          JAVA_DIR="$(dirname "$(dirname "$(readlink -f "$(which javac)")")")"
+          echo "JAVA_DIR=$JAVA_DIR"
+          keytool -keyalg RSA -genkeypair -alias androiddebugkey -keypass android \
+            -keystore "$HOME/debug.keystore" -storepass android \
+            -dname "CN=Android Debug,O=Android,C=US" -validity 9999 -deststoretype pkcs12
+          mkdir -p "$HOME/.config/godot"
+          for f in editor_settings-4.tres editor_settings-4.7.tres; do
+            {
+              echo '[gd_resource type="EditorSettings" format=3]'
+              echo ''
+              echo '[resource]'
+              echo "export/android/android_sdk_path = \"$SDK\""
+              echo "export/android/java_sdk_path = \"$JAVA_DIR\""
+              echo "export/android/debug_keystore = \"$HOME/debug.keystore\""
+              echo 'export/android/debug_keystore_user = "androiddebugkey"'
+              echo 'export/android/debug_keystore_pass = "android"'
+              echo 'export/android/shutdown_adb_on_exit = true'
+            } > "$HOME/.config/godot/$f"
+          done
+          cat "$HOME/.config/godot/editor_settings-4.tres"
+
+      - name: Import project
+        run: |
+          godot --headless --path . --import || true
+          godot --headless --path . --import || true
+
+      - name: Export debug APK
+        env:
+          GODOT_ANDROID_KEYSTORE_DEBUG_PATH: ${{ github.workspace }}/../debug.keystore
+        run: |
+          export GODOT_ANDROID_KEYSTORE_DEBUG_PATH="$HOME/debug.keystore"
+          export GODOT_ANDROID_KEYSTORE_DEBUG_USER=androiddebugkey
+          export GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD=android
+          mkdir -p build
+          godot --headless --path . --export-debug "Android" build/DriveBeyond.apk
+          ls -la build
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: DriveBeyond-apk
+          path: build/DriveBeyond.apk
+          if-no-files-found: error

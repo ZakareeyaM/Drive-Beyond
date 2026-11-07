@@ -1,0 +1,51 @@
+# DRIVE BEYOND — Explore. Drive. Survive.
+
+A 3D open-world driving game for **Android** (and desktop), built in **Godot 4.7** with **GDScript**.
+Every model, texture, shader, sound effect and music track is generated in code — there are no third-party assets.
+
+## Get the APK (GitHub Actions)
+1. Create a new GitHub repository and push this folder to the `main` branch (the folder with `project.godot` must be the repo root).
+2. Open the **Actions** tab → **Build Android APK**. It runs automatically on every push (or press *Run workflow*).
+3. When it finishes (about 10–20 min the first time), open the run → **Artifacts → DriveBeyond-apk** → download, unzip, install `DriveBeyond.apk` on your phone (allow "install unknown apps").
+
+If a build fails, open the failed step's log. The most common cause is the Android SDK / build-tools version that Godot expects; the workflow installs several versions, and the log tells you which one is missing — add it to the `sdkmanager` line in `.github/workflows/build-apk.yml`.
+
+## Run on desktop
+Open the folder in Godot 4.7 and press F5, or run `run_game.bat` (Windows, needs `godot` on PATH).
+
+## Controls
+| Action | Keyboard | Touch |
+|---|---|---|
+| Accelerate / brake-reverse | W / S | GAS / BRAKE |
+| Steer | A / D | ◀ ▶ (or tilt steering in Settings) |
+| Handbrake / nitro | Space / Shift | HB / N2O |
+| Enter / exit vehicle, interact | E (exit also F) | USE / EXIT |
+| Camera (chase, close, cockpit, hood, cinematic) | C | CAM |
+| Headlights / horn / reset car | L / H / R | LGT / HORN / RST |
+| Map / pause | M / Esc | MAP / II |
+| On foot | WASD, Shift run, Space jump, mouse look | left stick area, right-side drag look |
+
+All keys can be remapped in Settings → Controls.
+
+## What is in the game
+* **World**: 3.2 × 3.2 km procedurally generated map streamed in chunks — downtown grid with skyscrapers, suburbs, industrial port, highways, bridge and coast road, lighthouse, mountain pass to a summit, desert with dirt tracks and ghost town, pine forest, farmland, Apex Speedway and a drag strip. ~35 km of roads with a routing graph.
+* **Vehicles (10 + police)**: hatchback, sedan, GT, rotary AWD, V8 muscle, SUV, off-roader, pickup, supercar, electric hypercar. Arcade or simulation handling, gearbox/RPM, fuel, nitro, tyre/surface grip, visible damage (dents, cracked glass, broken lights, smoke).
+* **Garage & dealership**: 3D showroom, 8 performance upgrades (change real stats), paint, two-tone, wheels, rims, spoilers, bumpers, body kits, tint, headlights, underglow, plates, repair, sell, garage expansion. Cars are gated by reputation and money.
+* **On-foot play**: leave the car (`[E] Enter Vehicle` prompt when near it), walk, run, jump.
+* **Traffic & pedestrians**: AI cars on the road graph with traffic lights, lane changes and reactions; sidewalk pedestrians.
+* **Police**: 5 wanted levels (more units, faster/skilled drivers), roadblocks from level 4, helicopter with spotlight at level 5, busted fine and escape logic. Crimes: hit-and-run, speeding cameras, red lights, hitting pedestrians/police.
+* **Day / night & weather**: full cycle with sunset sky and lit windows; clear, cloudy, light rain, heavy rain, fog, thunderstorm — rain wets roads and reduces grip.
+* **Missions (18)**: story chain with Rico, Vera, Marcus, Kane and Ghost; street races, time trials, drag, drift, deliveries (damage limits), driving challenges (top speed, near misses, air time), police escapes, off-road runs, plus random rival sprints. Rewards, reputation, replays.
+* **Systems**: money/fuel/repair economy, hidden packages, location discovery, GPS route on minimap and map, manual + auto save with corruption protection (checksum + backup), settings with Low/Medium/High/Ultra presets, procedural audio on four buses (Music, Engine, Environment, Effects).
+
+## Honest limitations
+* **No underground parking.** The terrain is a heightfield, so true underground spaces can't be built; the rooftop parking structure is provided instead.
+* Building interiors are not enterable; the garage, dealership and gas stations are drive-up locations with their own menus.
+* The world is procedural and stylised (low-poly look), not photoreal. Vehicles are original designs, not licensed cars.
+* Tilt steering depends on your phone's sensor orientation; use "Invert tilt" in Settings if it feels reversed. Touch layout and performance were not tested on real hardware — on weaker phones keep the **Low** preset (default on mobile) and lower *View distance*.
+* The APK is a **debug-signed** build for sideloading, not a Play Store release.
+* Pedestrians and police are simplified (no full ragdolls or on-foot arrests).
+
+## Project layout
+`scripts/autoload` (Game, Data) · `scripts/world` (generation, streaming, weather, world orchestrator) · `scripts/vehicles` · `scripts/traffic` · `scripts/police` · `scripts/missions` + `data/missions/missions.json` · `scripts/audio` · `scripts/ui` · `shaders` · `tests` (dev-only checks).
+Missions are plain JSON — add your own entries to `data/missions/missions.json`.
