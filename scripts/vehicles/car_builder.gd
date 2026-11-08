@@ -115,6 +115,10 @@ static func body_width_at(v: Dictionary, t: float) -> float:
 	return W * f
 
 static func build(vid: String, custom: Dictionary) -> Dictionary:
+	if VehicleModels.has(vid):
+		var glb: Dictionary = GlbVehicle.build(vid, custom)
+		if not glb.is_empty():
+			return glb
 	var v: Dictionary = Data.vehicle(vid)
 	var L: float = float(v["L"])
 	var W: float = float(v["W"])
@@ -413,6 +417,15 @@ static func _add_underglow(root: Node3D, v: Dictionary, custom: Dictionary, out:
 
 
 ## One wheel visual: tyre + rim. Axis along X.
+## Wheel visual for wheel index idx (0 = front -X, 1 = front +X, 2 = rear -X, 3 = rear +X).
+## Uses the model's own wheel mesh when the car comes from a GLB, otherwise the procedural wheel.
+static func make_wheel_visual(model: Dictionary, vid: String, custom: Dictionary, idx: int) -> MeshInstance3D:
+	if model.has("wheel_meshes"):
+		var mi := MeshInstance3D.new()
+		mi.mesh = (model["wheel_meshes"] as Array)[idx]
+		return mi
+	return build_wheel(vid, custom)
+
 static func build_wheel(vid: String, custom: Dictionary) -> MeshInstance3D:
 	var v: Dictionary = Data.vehicle(vid)
 	var wr: float = float(v["wr"])

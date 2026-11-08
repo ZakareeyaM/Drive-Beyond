@@ -39,7 +39,7 @@ func _ready() -> void:
 	var v: Dictionary = Data.vehicle(vid)
 	for sx in [-1.0, 1.0]:
 		for sz in [-1.0, 1.0]:
-			var w := CarBuilder.build_wheel(vid, custom)
+			var w := CarBuilder.make_wheel_visual(b, vid, custom, (2 if sz > 0.0 else 0) + (1 if sx > 0.0 else 0))
 			w.position = Vector3(sx * float(v["track"]) * 0.5, float(v["wr"]), sz * float(v["wb"]) * 0.5)
 			n.add_child(w)
 	var cam := Camera3D.new()

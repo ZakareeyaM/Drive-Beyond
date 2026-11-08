@@ -127,6 +127,16 @@ func _build_collision() -> void:
 	for c in get_children():
 		if c is CollisionShape3D:
 			c.queue_free()
+	if VehicleModels.has(vid):
+		# imported model: separate simple boxes (body, front/rear bumper, cabin) from VehicleModels
+		for b in GlbVehicle.collision_boxes(vid):
+			var cs := CollisionShape3D.new()
+			var bs := BoxShape3D.new()
+			bs.size = b["size"]
+			cs.shape = bs
+			cs.position = (b["pos"] as Vector3) + Vector3(0, MODEL_Y, 0)
+			add_child(cs)
+		return
 	var L: float = float(spec["L"])
 	var W: float = float(spec["W"])
 	var belly: float = float(spec["belly"])
@@ -175,7 +185,7 @@ func _build_wheels() -> void:
 			w.wheel_friction_slip = float(stats["grip"]) * 2.4 * FRICTION_K
 			w.use_as_steering = front
 			w.use_as_traction = (drive == "AWD") or (drive == "FWD" and front) or (drive == "RWD" and not front)
-			var vis: MeshInstance3D = CarBuilder.build_wheel(vid, custom)
+			var vis: MeshInstance3D = CarBuilder.make_wheel_visual(model, vid, custom, (2 if fz > 0.0 else 0) + (1 if sx > 0.0 else 0))
 			w.add_child(vis)
 			add_child(w)
 			wheels.append(w)
@@ -522,13 +532,16 @@ func apply_damage_visuals() -> void:
 	if paint:
 		paint.set_shader_parameter("damage", damage)
 		paint.set_shader_parameter("dents", dents)
+	for pm in model.get("paint_extra", []):
+		(pm as ShaderMaterial).set_shader_parameter("damage", damage)
+		(pm as ShaderMaterial).set_shader_parameter("dents", dents)
 	var glass: StandardMaterial3D = model.get("glass")
 	if glass:
 		if damage > 0.5:
 			glass.albedo_color = Color(0.55, 0.6, 0.65, 0.85)
 		else:
 			var ti: int = clampi(int(custom.get("tint", 1)), 0, 3)
-			glass.albedo_color = Color(0.04, 0.06, 0.09, [0.35, 0.55, 0.78, 0.94][ti])
+			glass.albedo_color = Color(0.04, 0.06, 0.09, (model.get("glass_alpha", [0.35, 0.55, 0.78, 0.94]) as Array)[ti])
 	if damage > 0.35 and _spot.size() > 0:
 		(_spot[0] as SpotLight3D).visible = false
 	if damage > 0.7:

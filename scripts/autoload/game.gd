@@ -17,7 +17,7 @@ const SAVE_BAK := "user://save.bak"
 const SAVE_TMP := "user://save.tmp"
 const SAVE_VERSION := 1
 const START_MONEY := 3000
-const START_VEHICLE := "pico_h1"
+const START_VEHICLE := "bmw_m6"
 
 var money: int = START_MONEY
 var rep: int = 0
@@ -485,6 +485,11 @@ func load_game() -> bool:
 	selected = String(d.get("selected", START_VEHICLE))
 	if not owned.has(selected):
 		selected = owned.keys()[0]
+	if not owned.has(START_VEHICLE):
+		# older saves: the imported BMW M6 is the new primary car - grant it, and switch only players still on the old starter
+		owned[START_VEHICLE] = new_vehicle_record(START_VEHICLE)
+		if selected == "pico_h1":
+			selected = START_VEHICLE
 	missions_done = d.get("missions_done", {})
 	collectibles = d.get("collectibles", [])
 	discovered = d.get("discovered", [])

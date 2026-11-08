@@ -222,6 +222,13 @@ func _run_cmd(c: String) -> void:
 			world.shutdown_session()
 			_start(false)
 		"tilt_report": print("TILT out=%.3f car_steer_cur=%.3f car_steering=%.3f active=%s" % [world.tilt.output, world.player_car.steer_cur, world.player_car.steering, world.tilt_active()])
+		"wheel_report": _wheel_report()
+		"brake": Input.action_press("brake")
+		"nobrake": Input.action_release("brake")
+		"right": Input.action_press("steer_right", 0.4)
+		"nosteer":
+			Input.action_release("steer_left")
+			Input.action_release("steer_right")
 		"gas": Input.action_press("accelerate")
 		"left": Input.action_press("steer_left", 0.4)
 		"nogas": Input.action_release("accelerate")
@@ -353,6 +360,20 @@ func _unhandled_input(ev: InputEvent) -> void:
 	if ev.is_action_pressed("pause") and screen != null and screen_kind in ["pause", "map", "settings"]:
 		_close_screen()
 		get_viewport().set_input_as_handled()
+
+func _wheel_report() -> void:
+	var car: Vehicle = world.player_car
+	var names: Array = ["FL", "FR", "RL", "RR"]
+	var parts: Array = []
+	for i in range(car.wheels.size()):
+		var w: VehicleWheel3D = car.wheels[i]
+		var vis: Node3D = car.wheel_visuals[i]
+		var local: Vector3 = car.global_transform.affine_inverse() * vis.global_position
+		var q := PhysicsRayQueryParameters3D.create(vis.global_position + Vector3(0, 0.2, 0), vis.global_position + Vector3(0, -3.0, 0), 1)
+		var hit: Dictionary = car.get_world_3d().direct_space_state.intersect_ray(q)
+		var gap: float = (vis.global_position.y - float(car.spec["wr"])) - float(hit["position"].y) if not hit.is_empty() else 99.0
+		parts.append("%s rpm=%.0f steer=%.2f contact=%s tyre-to-road gap=%.3f m vis_local=(%.2f,%.2f,%.2f)" % [names[i], w.get_rpm(), w.steering, w.is_in_contact(), gap, local.x, local.y, local.z])
+	print("WHEELS vid=%s speed=%.1f km/h y=%.2f | %s" % [car.vid, car.abs_speed * 3.6, car.global_position.y, " | ".join(parts)])
 
 func _report() -> void:
 	if screen is GarageUI:

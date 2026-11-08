@@ -373,9 +373,24 @@ func _engine_kind(vid: String) -> String:
 		return "eng_high"
 	return "eng_mid"
 
+var _custom_engine_streams: Dictionary = {}
+
+## Per-vehicle recorded engine loop (VehicleModels "engine_sound"); falls back to the procedural loops.
+func _engine_stream(vid: String) -> AudioStream:
+	var cfg: Dictionary = VehicleModels.cfg(vid)
+	if cfg.has("engine_sound") and ResourceLoader.exists(String(cfg["engine_sound"])):
+		if not _custom_engine_streams.has(vid):
+			var st: AudioStream = load(String(cfg["engine_sound"]))
+			if st is AudioStreamMP3:
+				(st as AudioStreamMP3).loop = true
+				(st as AudioStreamMP3).loop_offset = float(cfg.get("engine_loop_offset", 0.0))
+			_custom_engine_streams[vid] = st
+		return _custom_engine_streams[vid]
+	return sounds[_engine_kind(vid)]
+
 func _engine3d(v: Vehicle, vol: float, dist: float) -> AudioStreamPlayer3D:
 	var p := AudioStreamPlayer3D.new()
-	p.stream = sounds[_engine_kind(v.vid)]
+	p.stream = _engine_stream(v.vid)
 	p.bus = "Engine"
 	p.unit_size = 6.0
 	p.max_distance = dist
@@ -447,12 +462,16 @@ func _process(delta: float) -> void:
 		tyre_player.volume_db = -60.0
 		heli_player.volume_db = -60.0
 		return
-	var v: Vehicle = pl_car
+	var v: Vehicle = pl_car if is_instance_valid(pl_car) else null
 	if v and is_instance_valid(v):
 		if pl_engine and is_instance_valid(pl_engine):
 			var rn: float = clampf(v.rpm_norm, 0.0, 1.2)
 			var elec: bool = String(v.spec.get("engine", "")) == "electric"
 			pl_engine.pitch_scale = (0.5 + rn * 2.4) if not elec else (0.4 + rn * 2.8)
+			var ecfg: Dictionary = VehicleModels.cfg(v.vid)
+			if ecfg.has("engine_pitch"):
+				var ep: Array = ecfg["engine_pitch"]
+				pl_engine.pitch_scale = lerpf(float(ep[0]), float(ep[1]), clampf(rn, 0.0, 1.0))
 			var ld: float = 0.55 + 0.45 * v.in_throttle
 			var drive_mode: bool = world.mode == "drive"
 			pl_engine.volume_db = linear_to_db(maxf(0.001, ld * (1.0 if drive_mode else 0.45) * (0.0 if not v.engine_on else 1.0))) - 2.0

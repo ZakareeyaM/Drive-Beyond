@@ -64,3 +64,10 @@ Missions are plain JSON — add your own entries to `data/missions/missions.json
 - **Driving** – progressive throttle/brake response on top of the existing speed-sensitive steering, gearbox, downforce and anti-roll.
 - **Environment** – lighter daytime haze.
 - Tests: `tests/crash_test.tscn`, `tests/physics_test.tscn`, `tests/car_close.tscn`.
+
+## Imported vehicles (GLB) – BMW M6 1988
+- `assets/vehicles/bmw_m6_1988_custom.glb` is the starting/primary car (`bmw_m6` in `Data.VEHICLES`, `START_VEHICLE`). Older saves are granted it automatically.
+- `scripts/vehicles/vehicle_models.gd` is the registry: one entry per GLB (scale, wheel seeds, lamps, glass, collision boxes, camera tweak, engine sound). `scripts/vehicles/glb_vehicle.gd` bakes the ~300 model pieces into one body mesh + 4 wheel meshes (cached), re-paints the body-red texels (`shaders/glb_body.gdshader`, also dents/wear) and returns the usual model dictionary.
+- Wheels are parented to the existing `VehicleWheel3D` nodes, so the original controller steers/spins them. Collision uses simple boxes (body, front/rear bumper, cabin).
+- Add another car: put the .glb in `assets/vehicles/`, add a registry entry + a `Data.VEHICLES` entry with the same id.
+- Tests: `tests/glb_check.tscn` (bake/wheel/dimension check), `tests/glb_view.tscn`, `tests/crash_test.tscn -- bmw_m6`; in-game `--cmd=wheel_report`.

@@ -146,7 +146,7 @@ func show_car(vid: String, custom: Dictionary, upg: Dictionary = {}) -> void:
 	pivot.add_child(root)
 	for fz in [-1.0, 1.0]:
 		for sx in [-1.0, 1.0]:
-			var wv: MeshInstance3D = CarBuilder.build_wheel(vid, c)
+			var wv: MeshInstance3D = CarBuilder.make_wheel_visual(m, vid, c, (2 if fz > 0.0 else 0) + (1 if sx > 0.0 else 0))
 			wv.position = Vector3(sx * float(spec["track"]) * 0.5, float(spec["wr"]), fz * float(spec["wb"]) * 0.5)
 			root.add_child(wv)
 	car_root = root

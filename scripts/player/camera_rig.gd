@@ -134,6 +134,9 @@ func _update(delta: float, snap_f: float) -> void:
 				var L: float = float(v.spec["L"])
 				dist += (L - 4.3) * 0.5
 				h += float(v.spec["roof"]) - 1.4
+				var vcam: Dictionary = VehicleModels.cfg(v.vid).get("cam", {})   # optional per-model camera tweak
+				dist *= float(vcam.get("dist", 1.0))
+				h += float(vcam.get("height", 0.0))
 			var follow_yaw: float = body_yaw
 			if spd > 6.0 and v and v.speed > 0.0:
 				var vy: float = atan2(-vel.x, -vel.z)
