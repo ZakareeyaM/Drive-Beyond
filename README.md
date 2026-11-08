@@ -56,3 +56,11 @@ Missions are plain JSON — add your own entries to `data/missions/missions.json
 - **Day/night**: sun + clear blue sky by day; moon, stars and black sky at night (game starts at 09:00).
 - **Vehicles**: wheels now visible on both faces and no longer buried in narrow bodies; lamps seated in bezels; rear valance, tucked exhausts, mirror stalks, thinner door seams.
 - Needs on-device testing: real sensor sign/feel on Tecno Spark 7, performance on device.
+
+## Visual Overhaul (this release)
+- **Vehicles** – Kestrel R (red GT coupe), Hauler R (black pickup), Vela GT (white sports coupe), Brawler 69 (blue muscle car) use the new `scripts/vehicles/hero_cars.gd` builder: shoulder-line body shell, separate glasshouse/roof/pillars, wheel arches, per-car lamps, grilles, bumpers, exhausts and wing. All customization options (paint, tint, rims, bumper, body kit, spoiler, underglow, plate, headlights) still apply. Default paints: red / black / white / blue.
+- **HUD** – round speedometer with rev arc, fuel + damage bars with icons, pedal-style BRAKE/GAS, two icon button columns, tilt slider, minimap, pause, money/time.
+- **Collisions** – colliders for lamp poles, palms, trees, rocks, cacti and traffic-light poles; continuous collision detection; severity-based damage, dents, smoke, cracked glass, broken headlights.
+- **Driving** – progressive throttle/brake response on top of the existing speed-sensitive steering, gearbox, downforce and anti-roll.
+- **Environment** – lighter daytime haze.
+- Tests: `tests/crash_test.tscn`, `tests/physics_test.tscn`, `tests/car_close.tscn`.

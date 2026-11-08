@@ -212,16 +212,22 @@ static func build(w: WorldGen, cx: int, cz: int) -> Dictionary:
 				var ang: float = atan2(na.z * side2, -na.x * side2)
 				var lb := Basis(Vector3.UP, ang)
 				_mm_add(mm, "lamp", Transform3D(lb, Vector3(lp.x, lp.y, lp.z)), Color.WHITE, Color(0, 0, 0, 0), false, false)
+				_append_box(coll, Transform3D(Basis(Vector3.UP, ang), lp + Vector3(0, 3.5, 0)), Vector3(0.3, 7.0, 0.3))
+				ncoll += 1
 				var head: Vector3 = lp + lb * Vector3(1.75, 0.0, 0.0)
 				_mm_add(mm, "pool", Transform3D(Basis.IDENTITY, Vector3(head.x, p0.y + 0.13, head.z)), Color(1, 1, 1, 1), Color(0, 0, 0, 0), true, false)
 			if kind == "avenue" and rr < 560.0 and k % 5 == 2 and br[k] == 0:
 				var sd: float = 1.0 if (k / 5) % 2 == 0 else -1.0
 				var pp: Vector3 = Vector3(p0.x + na.x * (hw + 2.6) * sd, p0.y + 0.06, p0.z + na.z * (hw + 2.6) * sd)
 				_mm_add(mm, "palm", Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.8, 1.1)), pp), Color(1, 1, 1, 1), Color(0, 0, 0, 0), true, false)
+				_append_box(coll, Transform3D(Basis.IDENTITY, pp + Vector3(0, 2.5, 0)), Vector3(0.55, 5.0, 0.55))
+				ncoll += 1
 			if kind == "coastal" and w.region_at(p0.x, p0.z) == "coast" and k % 6 == 3 and br[k] == 0:
 				var sd2: float = 1.0 if (k / 6) % 2 == 0 else -1.0
 				var pp2: Vector3 = Vector3(p0.x + na.x * (hw + 3.0) * sd2, p0.y, p0.z + na.z * (hw + 3.0) * sd2)
 				_mm_add(mm, "palm", Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.8, 1.1)), pp2), Color(1, 1, 1, 1), Color(0, 0, 0, 0), true, false)
+				_append_box(coll, Transform3D(Basis.IDENTITY, pp2 + Vector3(0, 2.5, 0)), Vector3(0.55, 5.0, 0.55))
+				ncoll += 1
 			# guard rails where there is a drop-off
 			if (kind == "mountain" or kind == "coastal" or kind == "highway") and k % 2 == 0 and br[k] == 0:
 				for side3 in [-1.0, 1.0]:
@@ -308,14 +314,19 @@ static func build(w: WorldGen, cx: int, cz: int) -> Dictionary:
 				if reg == "coast":
 					name2 = "palm"
 				_mm_add(mm, name2, Transform3D(tb2, Vector3(tx, th - 0.1, tz)), tint, Color(0, 0, 0, 0), true, false)
-				_append_box_small(coll, Vector3(tx, th + 1.5, tz))
+				var tw: float = (0.5 if name2 != "pine" else 0.45) * sc2
+				_append_box(coll, Transform3D(Basis.IDENTITY, Vector3(tx, th + 2.0 * sc2, tz)), Vector3(tw, 4.0 * sc2, tw))
 				ncoll += 1
 			elif reg == "desert" and roll2 < 0.035 and w._free_of_roads(tx, tz, 8.0):
 				_mm_add(mm, "cactus", Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.8, 1.5)), Vector3(tx, th - 0.1, tz)), Color(1, 1, 1, 1), Color(0, 0, 0, 0), true, false)
+				_append_box(coll, Transform3D(Basis.IDENTITY, Vector3(tx, th + 1.0, tz)), Vector3(0.7, 2.0, 0.7))
+				ncoll += 1
 			elif (reg == "mountain" or reg == "desert" or (reg == "coast" and th < 4.0)) and roll2 < (0.1 if reg == "mountain" else 0.05) and w._free_of_roads(tx, tz, 8.0):
 				var rs: float = rng.randf_range(0.8, 3.2)
 				var rcol2: Color = Color(1.0, 0.85, 0.65) if reg == "desert" else Color(1, 1, 1)
 				_mm_add(mm, "rock", Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(rs, rs * rng.randf_range(0.6, 1.1), rs)), Vector3(tx, th - 0.2, tz)), rcol2, Color(0, 0, 0, 0), true, false)
+				_append_box(coll, Transform3D(Basis.IDENTITY, Vector3(tx, th + rs * 0.45, tz)), Vector3(rs * 1.5, rs * 0.9, rs * 1.5))
+				ncoll += 1
 	out["mm"] = mm
 	out["coll"] = coll
 	out["ncoll"] = ncoll

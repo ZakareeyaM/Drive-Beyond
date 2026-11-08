@@ -244,7 +244,7 @@ func _update(delta: float) -> void:
 	env.ambient_light_energy = float(k["aene"]) * (1.0 - 0.25 * dark) + flash * 1.2
 	env.fog_light_color = fogc
 	var base_d: float = 2.4 / maxf(view_dist, 200.0)
-	env.fog_density = base_d * (1.0 + float(cur["fog"]) * 2.2) * (0.5 if night_amt < 0.5 and dark < 0.1 else 0.8)
+	env.fog_density = base_d * (1.0 + float(cur["fog"]) * 2.2) * (0.3 if night_amt < 0.5 and dark < 0.1 else 0.8)
 	env.fog_sky_affect = 0.12 if night_amt < 0.5 else 0.0
 	env.fog_aerial_perspective = 0.0
 	if cam == null or not is_instance_valid(cam):

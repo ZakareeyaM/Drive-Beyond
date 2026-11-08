@@ -170,6 +170,16 @@ func _run_cmd(c: String) -> void:
 	if c.begins_with("shot_"):
 		get_viewport().get_texture().get_image().save_png("/tmp/gd/ui_%s.png" % c.substr(5))
 		return
+	if c.begins_with("hero_"):
+		var hid: String = c.substr(5)
+		Game.money = 900000
+		Game.rep = 5000
+		Game.garage_slots = maxi(Game.garage_slots, 12)
+		Game.buy_vehicle(hid)
+		Game.selected = hid
+		world.apply_custom_to_car()
+		print("HERO ", world.player_car.vid)
+		return
 	match c:
 		"garage": open_garage()
 		"dealer": open_dealership()
@@ -191,6 +201,14 @@ func _run_cmd(c: String) -> void:
 		"mreport": print("MISSION ", world.missions.hud_info(), " opp=", world.missions.opp.size(), " route=", world.missions.route.size())
 		"preport": print("POLICE lvl=%d units=%d heat=%.2f near=%.0f heli=%s blocks=%d" % [world.police.level, world.police.units.size(), world.police.heat, world.police.nearest_cop, world.police.heli != null, world.police.roadblocks.size()])
 		"cam": world.cam.cycle_mode()
+		"crash_pole": _crash_test("pole", 25.0)
+		"crash_tree": _crash_test("tree", 25.0)
+		"crash_building": _crash_test("building", 25.0)
+		"crash_rail": _crash_test("rail", 20.0)
+		"crash_slow": _crash_test("pole", 6.0)
+		"crash_fast": _crash_test("pole", 45.0)
+		"crash_traffic": _crash_test_traffic(25.0)
+		"crash_report": _crash_report()
 		"tilt_on": Game.settings["tilt_steer"] = true
 		"tilt_off": Game.settings["tilt_steer"] = false
 		"tilt_cal":
@@ -342,3 +360,68 @@ func _report() -> void:
 		print("SHOWROOM size=%s vp=%s car=%s visible=%s cam=%s" % [sr.size, sr.vp.size, sr.car_root, sr.visible, sr.cam.global_position])
 	var v: Vehicle = world.player_car
 	print("REPORT mode=%s running=%s pos=%s speed=%.1f kmh chunks=%d traffic=%d police=%d peds=%d fps=%d" % [world.mode, world.running, world.player_pos().snapped(Vector3.ONE), (v.abs_speed * 3.6 if v else 0.0), world.streamer.get_child_count(), world.traffic.cars.size(), world.police.units.size(), world.peds.peds.size(), Engine.get_frames_per_second()])
+
+# ---------------------------------------------------------------- crash test hooks (automated testing)
+var _ct_target: Vector3 = Vector3.ZERO
+var _ct_start_dmg: float = 0.0
+var _ct_kind: String = ""
+var _ct_v0: float = 0.0
+
+func _crash_test(kind: String, speed: float) -> void:
+	var car: Vehicle = world.player_car
+	var best: Vector3 = Vector3.ZERO
+	var bd: float = 1e9
+	var pp: Vector3 = car.global_position
+	for body in get_tree().get_nodes_in_group("structure"):
+		for c in body.get_children():
+			if not (c is CollisionShape3D) or not (c.shape is BoxShape3D):
+				continue
+			var sz: Vector3 = (c.shape as BoxShape3D).size
+			var ok: bool = false
+			match kind:
+				"pole": ok = sz.x < 0.4 and sz.y > 5.0 and sz.y < 6.0
+				"tree": ok = sz.x > 0.4 and sz.x < 2.5 and sz.y > 3.5 and sz.y < 8.0 and absf(sz.x - sz.z) < 0.01
+				"building": ok = sz.x > 8.0 and sz.z > 8.0 and sz.y > 10.0
+				"rail": ok = sz.y < 1.5 and sz.x < 0.5
+			if ok:
+				var gp: Vector3 = (c as CollisionShape3D).global_position
+				var d: float = gp.distance_to(pp)
+				if d < bd and d > 20.0:
+					bd = d
+					best = gp
+	if bd > 1e8:
+		print("CRASHTEST %s: no target found" % kind)
+		return
+	_ct_target = best
+	_ct_kind = kind
+	var start: Vector3 = best + Vector3(0, 0, 40.0)
+	var gy: float = world.gen.ground_h(start.x, start.z)
+	car.place_on_ground(Vector3(start.x, gy, start.z), 0.0)
+	car.linear_velocity = Vector3(0, 0, -speed)
+	car.prev_vel = car.linear_velocity
+	car.repair_full()
+	_ct_start_dmg = 0.0
+	_ct_v0 = speed
+	Input.action_press("accelerate")
+	print("CRASHTEST %s at %s start speed %.0f m/s" % [kind, best.snapped(Vector3.ONE * 0.1), speed])
+
+func _crash_test_traffic(speed: float) -> void:
+	var car: Vehicle = world.player_car
+	if world.traffic.cars.is_empty():
+		print("CRASHTEST traffic: no traffic cars")
+		return
+	var tc: Node3D = world.traffic.cars[0]
+	var behind: Vector3 = tc.global_position + tc.global_transform.basis.z * 30.0
+	car.place_on_ground(behind, tc.rotation.y)
+	car.linear_velocity = -car.global_transform.basis.z * speed
+	car.prev_vel = car.linear_velocity
+	car.repair_full()
+	_ct_kind = "traffic"
+	_ct_v0 = speed
+	print("CRASHTEST traffic start")
+
+func _crash_report() -> void:
+	var car: Vehicle = world.player_car
+	var d: float = car.global_position.distance_to(_ct_target) if _ct_target != Vector3.ZERO else -1.0
+	print("CRASHRESULT kind=%s v0=%.0f speed_now=%.1f dmg=%.3f last_impact=%.1f dist_to_target=%.1f lamps_broken=%s wrecked=%s" % [_ct_kind, _ct_v0, car.abs_speed, car.damage, car.last_impact, d, car.lamps_broken, car.wrecked])
+	Input.action_release("accelerate")

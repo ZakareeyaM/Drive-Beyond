@@ -165,6 +165,11 @@ static func build(vid: String, custom: Dictionary) -> Dictionary:
 	var tail_mat := emissive_material(Color(1.0, 0.05, 0.03), 0.5)
 	out["head_mat"] = head_mat
 	out["tail_mat"] = tail_mat
+	if HeroCars.is_hero(vid):
+		HeroCars.build(vid, root, v, custom, out, paint, glass, dark, chrome, head_mat, tail_mat)
+		HeroCars.add_custom(root, v, custom, paint, dark, vid)
+		_add_underglow(root, v, custom, out)
+		return out
 	# ------------------------------------------------ body loft
 	var top_keys: Array = [[0.0, hood * 0.76], [0.04, hood * 0.9], [0.1, hood], [cab0, belt * 0.985], [cab1, belt], [minf(cab1 + 0.03, 0.985), trunk], [1.0, trunk * 0.9]]
 	if pickup:
@@ -377,7 +382,12 @@ static func build(vid: String, custom: Dictionary) -> Dictionary:
 		_box_mi(root, dark, Vector3(0, wall_y + 0.02, bed_z0 + bed_len * 0.5), Vector3(body_width_at(v, 0.8) * 2.0 - 0.18, 0.02, bed_len - 0.1))
 	elif cat == "Hatchback":
 		_box_mi(root, paint, Vector3(0, roof - 0.01, -L * 0.5 + cab1 * L - 0.08), Vector3(roof_w * 0.9, 0.04, 0.28), Vector3(0.1, 0, 0))
-	# underglow
+	_add_underglow(root, v, custom, out)
+	return out
+
+static func _add_underglow(root: Node3D, v: Dictionary, custom: Dictionary, out: Dictionary) -> void:
+	var W: float = float(v["W"])
+	var L: float = float(v["L"])
 	var ug_i: int = int(custom.get("underglow", 0))
 	var ug_col: Color = Data.UNDERGLOWS[ug_i % Data.UNDERGLOWS.size()]["c"]
 	var ug := Node3D.new()
@@ -400,7 +410,7 @@ static func build(vid: String, custom: Dictionary) -> Dictionary:
 	ug.visible = ug_i > 0
 	root.add_child(ug)
 	out["underglow"] = ug
-	return out
+
 
 ## One wheel visual: tyre + rim. Axis along X.
 static func build_wheel(vid: String, custom: Dictionary) -> MeshInstance3D:

@@ -77,6 +77,10 @@ func _build_light_visuals() -> void:
 	lm.instance_count = n_int * 8
 	var pi: int = 0
 	var li: int = 0
+	var pole_body := StaticBody3D.new()   # solid traffic-light poles (layer 1: cars + pedestrians collide)
+	pole_body.collision_layer = 1
+	pole_body.add_to_group("structure")
+	add_child(pole_body)
 	var lamp_nodes_idx: Array = []
 	for nid in light_nodes:
 		var p: Vector3 = w.nodes[nid]
@@ -85,6 +89,12 @@ func _build_light_visuals() -> void:
 			for cz in [-1.0, 1.0]:
 				var pos := Vector3(p.x + cx * hw, p.y + 0.06, p.z + cz * hw)
 				pm.set_instance_transform(pi, Transform3D(Basis.IDENTITY, pos))
+				var cs := CollisionShape3D.new()
+				var bs := BoxShape3D.new()
+				bs.size = Vector3(0.3, 5.6, 0.3)
+				cs.shape = bs
+				cs.position = pos + Vector3(0, 2.8, 0)
+				pole_body.add_child(cs)
 				pi += 1
 				# lamp facing along z (serves north/south traffic): placed on the side facing the approaching cars
 				lm.set_instance_transform(li, Transform3D(Basis.IDENTITY, pos + Vector3(0, 5.5, -cz * 0.31)))

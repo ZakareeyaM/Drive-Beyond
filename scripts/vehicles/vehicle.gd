@@ -49,6 +49,8 @@ var drifting: bool = false
 var drift_time: float = 0.0
 var drift_points: float = 0.0
 var damage: float = 0.0
+var last_impact: float = 0.0
+var lamps_broken: bool = false
 var fuel: float = 1.0
 var nitro: float = 1.0
 var has_nitro: bool = false
@@ -60,6 +62,8 @@ var wrecked: bool = false
 var on_road: bool = true
 var shift_timer: float = 0.0
 var steer_cur: float = 0.0
+var _thr_s: float = 0.0
+var _brk_s: float = 0.0
 var prev_vel: Vector3 = Vector3.ZERO
 var crash_cd: float = 0.0
 var dent_i: int = 0
@@ -248,9 +252,9 @@ func _build_lights_and_fx() -> void:
 func set_headlights(on: bool) -> void:
 	headlights_on = on
 	for s in _spot:
-		(s as SpotLight3D).visible = on and not (damage > 0.7)
+		(s as SpotLight3D).visible = on and not (damage > 0.7) and not lamps_broken
 	var hm: StandardMaterial3D = model.get("head_mat")
-	if hm:
+	if hm and not lamps_broken:
 		hm.emission_energy_multiplier = 3.0 if on else 0.35
 
 func set_inputs(throttle: float, brake: float, steer: float, handbrake: bool, nitro_btn: bool = false) -> void:
@@ -326,8 +330,11 @@ func _physics_process(dt: float) -> void:
 	var ng: int = gears.size()
 	braking_now = false
 	reversing = false
-	var throttle_cmd: float = in_throttle
-	var brake_cmd: float = in_brake
+	# progressive pedal response: throttle builds up, lifts quicker; brake bites progressively
+	_thr_s = move_toward(_thr_s, in_throttle, dt * (3.2 if in_throttle > _thr_s else 7.0))
+	_brk_s = move_toward(_brk_s, in_brake, dt * (5.0 if in_brake > _brk_s else 9.0))
+	var throttle_cmd: float = _thr_s if in_throttle > 0.0 else 0.0
+	var brake_cmd: float = _brk_s if in_brake > 0.0 else 0.0
 	# S key semantics: brake while moving forward, reverse when (nearly) stopped
 	if in_brake > 0.05 and in_throttle < 0.05 and speed < 1.2 and not in_handbrake:
 		reversing = true
@@ -480,10 +487,23 @@ func _physics_process(dt: float) -> void:
 
 func _on_impact(imp: float, dv: Vector3) -> void:
 	crash_cd = 0.25
-	var sev: float = clampf((imp - 4.0) / 18.0, 0.05, 1.5)
+	last_impact = imp
+	# Damage scales with the square of the speed lost (kinetic energy), e.g.
+	#  6 m/s (~22 km/h) -> ~2%   12 m/s -> ~8%   20 m/s -> ~22%   30 m/s -> ~50%   40+ m/s -> wreck range
+	var sev: float = clampf(0.00055 * imp * imp, 0.005, 0.9)
 	if handling_arcade:
-		sev *= 0.75
-	damage = clampf(damage + sev * 0.17, 0.0, 1.0)
+		sev *= 0.8
+	damage = clampf(damage + sev, 0.0, 1.0)
+	sev = clampf(sev * 3.0, 0.05, 1.5)   # audio/shake/dent scale (0..1.5)
+	var ldir: Vector3 = global_transform.basis.inverse() * (-dv).normalized()
+	if ldir.z < -0.35 and damage > 0.2:
+		lamps_broken = true
+		var hm0: StandardMaterial3D = model.get("head_mat")
+		if hm0:
+			hm0.emission_energy_multiplier = 0.0
+			hm0.albedo_color = Color(0.1, 0.1, 0.1)
+		for sp in _spot:
+			(sp as SpotLight3D).visible = false
 	# dent at impact point
 	var local_dir: Vector3 = global_transform.basis.inverse() * (-dv).normalized()
 	var L: float = float(spec["L"])
@@ -518,6 +538,10 @@ func apply_damage_visuals() -> void:
 
 func repair_full() -> void:
 	damage = 0.0
+	lamps_broken = false
+	var hm1: StandardMaterial3D = model.get("head_mat")
+	if hm1:
+		hm1.albedo_color = (model.get("head_color") as Color) * 0.4
 	wrecked = false
 	dents = [Vector4.ZERO, Vector4.ZERO, Vector4.ZERO, Vector4.ZERO]
 	apply_damage_visuals()

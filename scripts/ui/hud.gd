@@ -112,7 +112,7 @@ func _draw() -> void:
 	_draw_minimap(vs)
 	_draw_top_right(vs)
 	if driving:
-		_draw_speedo(Vector2(vs.x * 0.5, vs.y - 100.0), car)
+		_draw_speedo(Vector2(vs.x * 0.5, vs.y - 84.0), car)
 	_draw_mission(vs)
 	_draw_toasts(vs)
 	_draw_wanted(vs)
@@ -121,44 +121,79 @@ func _draw() -> void:
 	if flash_a > 0.0:
 		draw_rect(Rect2(Vector2.ZERO, vs), Color(1, 1, 1, flash_a * 0.8))
 
+const H_NAVY := Color(0.03, 0.05, 0.13, 0.88)
+const H_CYAN := Color(0.25, 0.8, 1.0)
+const H_BLUE := Color(0.2, 0.45, 1.0)
+
+func _bar(x: float, y: float, w: float, frac: float, col: Color) -> void:
+	var bg := StyleBoxFlat.new()
+	bg.bg_color = Color(0.0, 0.0, 0.0, 0.55)
+	bg.set_corner_radius_all(5)
+	bg.border_color = Color(1, 1, 1, 0.25)
+	bg.set_border_width_all(1)
+	draw_style_box(bg, Rect2(x, y, w, 10))
+	if frac > 0.01:
+		var fg := StyleBoxFlat.new()
+		fg.bg_color = col
+		fg.set_corner_radius_all(5)
+		draw_style_box(fg, Rect2(x + 1, y + 1, (w - 2) * clampf(frac, 0.0, 1.0), 8))
+
 func _draw_speedo(c: Vector2, car: Vehicle) -> void:
-	var r: float = 78.0
-	draw_circle(c, r + 8.0, Color(0, 0, 0, 0.55))
-	draw_arc(c, r, deg_to_rad(150), deg_to_rad(390), 48, Color(1, 1, 1, 0.12), 8.0, true)
+	var r: float = 62.0
+	# glass dial
+	draw_circle(c, r + 10.0, Color(0, 0, 0, 0.35))
+	draw_circle(c, r + 6.0, H_NAVY)
+	draw_arc(c, r + 6.0, 0.0, TAU, 56, Color(1, 1, 1, 0.55), 2.0, true)
+	# track
+	draw_arc(c, r - 2.0, deg_to_rad(125), deg_to_rad(415), 56, Color(1, 1, 1, 0.1), 7.0, true)
 	var rn: float = clampf(car.rpm_norm, 0.0, 1.0)
-	var col: Color = UIKit.RED if rn > 0.88 else Color(0.95, 0.95, 1.0)
-	if rn > 0.01:
-		draw_arc(c, r, deg_to_rad(150), deg_to_rad(150 + 240.0 * rn), 40, col, 8.0, true)
-	var red0: float = 150.0 + 240.0 * 0.88
-	draw_arc(c, r + 9.0, deg_to_rad(red0), deg_to_rad(390), 10, Color(1, 0.1, 0.1, 0.7), 3.0, true)
-	var sp: float = Game.speed_to_display(car.abs_speed)
-	_txt("%d" % int(round(sp)), c + Vector2(-60, 14), 52, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, 120.0)
-	_txt(Game.unit_label(), c + Vector2(-40, 38), 18, UIKit.MUTED, HORIZONTAL_ALIGNMENT_CENTER, 80.0)
+	# redline segment (right side) always visible
+	var red0: float = 125.0 + 290.0 * 0.82
+	draw_arc(c, r - 2.0, deg_to_rad(red0), deg_to_rad(415), 14, Color(1, 0.12, 0.15, 0.85), 7.0, true)
+	# rev arc: cyan -> blue, white-hot in the red
+	var segs: int = int(32.0 * rn)
+	for i in segs:
+		var f0: float = float(i) / 32.0
+		var f1: float = float(i + 1) / 32.0 + 0.004
+		var col: Color = H_CYAN.lerp(H_BLUE, f0 / 0.82) if f0 < 0.82 else Color(1, 0.3, 0.3)
+		draw_arc(c, r - 2.0, deg_to_rad(125.0 + 290.0 * f0), deg_to_rad(125.0 + 290.0 * f1), 3, col, 7.0, true)
 	var g: String = "R" if car.reversing else ("N" if car.abs_speed < 0.6 and car.in_throttle < 0.05 else str(car.gear))
-	_txt(g, c + Vector2(-20, -40), 36, UIKit.RED if car.reversing else Color(1, 1, 1), HORIZONTAL_ALIGNMENT_CENTER, 40.0)
-	# fuel (left) + damage (right)
-	var bw: float = 120.0
-	var by: float = c.y + 52.0
-	var fx: float = c.x - r - 140.0
+	_txt(g, c + Vector2(-20, -24), 22, UIKit.RED if car.reversing else Color(0.85, 0.9, 1.0), HORIZONTAL_ALIGNMENT_CENTER, 40.0)
+	var sp: float = Game.speed_to_display(car.abs_speed)
+	_txt("%d" % int(round(sp)), c + Vector2(-50, 22), 44, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, 100.0)
+	_txt(Game.unit_label(), c + Vector2(-40, 40), 14, Color(0.8, 0.85, 1.0), HORIZONTAL_ALIGNMENT_CENTER, 80.0)
+	# fuel (left of dial) and damage (right of dial), each with an icon
+	var bw: float = 110.0
+	var by: float = c.y - 4.0
+	var fx: float = c.x - r - 34.0 - bw
 	var fcol: Color = UIKit.GOLD if car.fuel > 0.2 else Color(1, 0.2, 0.2)
 	if car.fuel < 0.2 and int(star_blink * 3.0) % 2 == 0:
 		fcol = Color(1, 0.6, 0.6)
-	_txt("FUEL", Vector2(fx, by - 22.0), 16, UIKit.MUTED)
-	draw_rect(Rect2(fx, by - 14.0, bw, 10), Color(0, 0, 0, 0.6))
-	draw_rect(Rect2(fx, by - 14.0, bw * car.fuel, 10), fcol)
-	var dx2: float = c.x + r + 20.0
-	_txt("DAMAGE", Vector2(dx2, by - 22.0), 16, UIKit.MUTED)
-	draw_rect(Rect2(dx2, by - 14.0, bw, 10), Color(0, 0, 0, 0.6))
-	var dcol: Color = Color(0.4, 0.9, 0.5).lerp(Color(1, 0.15, 0.1), car.damage)
-	draw_rect(Rect2(dx2, by - 14.0, bw * car.damage, 10), dcol)
+	_icon_fuel(Vector2(fx + 7.0, by - 12.0), Color(1, 1, 1, 0.95))
+	_txt("FUEL", Vector2(fx + 22.0, by - 7.0), 13, Color.WHITE)
+	_bar(fx, by + 2.0, bw, car.fuel, fcol)
+	var dx2: float = c.x + r + 34.0
+	var dcol: Color = Color(0.4, 0.9, 0.5).lerp(Color(1, 0.15, 0.1), clampf(car.damage * 1.3, 0.0, 1.0))
+	_icon_wrench(Vector2(dx2 + 7.0, by - 12.0), Color(1, 1, 1, 0.95))
+	_txt("DAMAGE", Vector2(dx2 + 22.0, by - 7.0), 13, Color.WHITE)
+	_bar(dx2, by + 2.0, bw, car.damage, dcol)
 	if car.has_nitro:
-		_txt("NITRO", Vector2(dx2, by + 8.0), 16, UIKit.MUTED)
-		draw_rect(Rect2(dx2, by + 16.0, bw, 8), Color(0, 0, 0, 0.6))
-		draw_rect(Rect2(dx2, by + 16.0, bw * car.nitro, 8), Color(0.3, 0.7, 1.0))
+		_txt("NITRO", Vector2(dx2, by + 30.0), 13, Color(0.7, 0.85, 1.0))
+		_bar(dx2, by + 34.0, bw, car.nitro, Color(0.3, 0.7, 1.0))
 	if car.headlights_on:
-		_txt("LIGHTS", Vector2(fx, by + 8.0), 16, Color(0.9, 0.9, 0.6))
+		draw_arc(Vector2(fx + 8.0, by + 28.0), 6.0, 0.0, TAU, 12, Color(0.9, 0.9, 0.6), 2.0, true)
+		_txt("LIGHTS", Vector2(fx + 22.0, by + 33.0), 13, Color(0.9, 0.9, 0.6))
 	if car.drifting and car.drift_time > 0.4:
 		_txt("DRIFT %d" % int(car.drift_points), Vector2(c.x - 100, c.y - r - 22.0), 28, Color(0.8, 0.5, 1.0), HORIZONTAL_ALIGNMENT_CENTER, 200.0)
+
+func _icon_fuel(c: Vector2, col: Color) -> void:
+	draw_rect(Rect2(c + Vector2(-5, -7), Vector2(9, 14)), col, false, 2.0)
+	draw_line(c + Vector2(-5, -3), c + Vector2(4, -3), col, 2.0)
+	draw_polyline(PackedVector2Array([c + Vector2(4, -4), c + Vector2(8, 0), c + Vector2(8, 6)]), col, 2.0)
+
+func _icon_wrench(c: Vector2, col: Color) -> void:
+	draw_line(c + Vector2(-6, 7), c + Vector2(3, -2), col, 3.0)
+	draw_arc(c + Vector2(5, -5), 4.5, deg_to_rad(40), deg_to_rad(320), 10, col, 2.5, true)
 
 func _draw_top_right(vs: Vector2) -> void:
 	var x: float = vs.x - 24.0
@@ -172,7 +207,8 @@ func _draw_wanted(vs: Vector2) -> void:
 	var lvl: int = world.police.level if world.police else 0
 	if lvl <= 0:
 		return
-	var x0: float = vs.x - 24.0 - 5.0 * 34.0
+	var touch_pad: float = 150.0 if (Game.is_mobile or bool(Game.settings.get("show_touch", false))) else 0.0
+	var x0: float = vs.x - 24.0 - touch_pad - 5.0 * 34.0
 	var blink: bool = world.police.nearest_cop < 120.0 and int(star_blink * 4.0) % 2 == 0
 	for i in 5:
 		var on: bool = i < lvl
@@ -183,7 +219,7 @@ func _draw_wanted(vs: Vector2) -> void:
 	var st: String = "POLICE CLOSING IN" if world.police.nearest_cop < 90.0 else "SEARCHING"
 	if world.police.busted_t > 0.1:
 		st = "BUSTING... %d%%" % int(world.police.busted_t / 3.2 * 100.0)
-	_txt(st, Vector2(vs.x - 324, 196), 16, Color(1.0, 0.5, 0.5), HORIZONTAL_ALIGNMENT_RIGHT, 300.0)
+	_txt(st, Vector2(vs.x - 324 - touch_pad, 196), 16, Color(1.0, 0.5, 0.5), HORIZONTAL_ALIGNMENT_RIGHT, 300.0)
 
 func _draw_mission(vs: Vector2) -> void:
 	var info: Dictionary = world.missions.hud_info() if world.missions else {}
