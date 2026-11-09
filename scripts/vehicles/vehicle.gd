@@ -348,9 +348,12 @@ func _physics_process(dt: float) -> void:
 	# S key semantics: brake while moving forward, reverse when (nearly) stopped
 	if in_brake > 0.05 and in_throttle < 0.05 and speed < 1.2 and not in_handbrake:
 		reversing = true
-	elif in_throttle > 0.05 and speed < -1.5:
-		brake_cmd = maxf(brake_cmd, in_throttle)
-		throttle_cmd = 0.0
+	# Accelerator while rolling backwards: keep the DRIVE force on (it acts against the backward velocity, brings the
+	# car to zero and then carries it forward) and add a wheel-brake assist that fades out towards zero speed, so the
+	# direction change is continuous - no handbrake, no velocity reset.
+	var rev_assist: float = 0.0
+	if in_throttle > 0.05 and speed < -0.5 and not in_handbrake:
+		rev_assist = in_throttle * clampf(-speed / 3.0, 0.0, 1.0)
 	var engine_f: float = 0.0
 	var brake_f: float = 0.0
 	if reversing:
@@ -369,6 +372,8 @@ func _physics_process(dt: float) -> void:
 		engine_f = thrust * throttle_cmd * shift_cut * dmg_pow * launch
 		if throttle_cmd < 0.05 and sp > 1.0:
 			brake_f += 0.06 * mass * 0.0035   # engine braking
+		if rev_assist > 0.0:
+			brake_f += rev_assist * 0.35 * float(stats["brake"]) * mass * 0.0034 * BRAKE_K
 		if brake_cmd > 0.05 and speed > -0.5:
 			braking_now = true
 			brake_f += brake_cmd * float(stats["brake"]) * mass * 0.0034 * BRAKE_K * (1.0 if handling_arcade else 0.88)

@@ -187,7 +187,9 @@ func _build_station(c: Vector3) -> void:
 	district = PackDistrict.new()
 	district.name = "PackDistrict"
 	add_child(district)
+	var t_d: int = Time.get_ticks_msec()
 	district.build(gen)
+	print("DISTRICT %d pack buildings, %d nodes, built in %d ms" % [district.count, district.get_child_count(), Time.get_ticks_msec() - t_d])
 
 func _structure(t: String) -> Dictionary:
 	for s in gen.structures:
@@ -246,14 +248,11 @@ func _process(delta: float) -> void:
 
 func start_menu() -> void:
 	mode = "menu"
-	var c: Vector3 = gen.landmarks.get("city_center", Vector3(0, 6, 0))
-	cam.orbit_mode = true
-	cam.orbit_center = c
-	cam.orbit_radius = 230.0
-	cam.orbit_height = 90.0
-	cam.orbit_t = 0.6
-	menu_dummy.global_position = Vector3(c.x, c.y, c.z)
-	streamer.focus = menu_dummy.global_position
+	## The menu has its own tiny background scene (MenuBackground); the gameplay world is neither streamed nor
+	## rendered while it is showing.
+	visible = false
+	streamer.set_process(false)
+	traffic.enabled = false
 	traffic.player = menu_dummy
 	traffic.player_vehicle = null
 	audio.set_music("menu")
@@ -270,6 +269,10 @@ func start_game(load_save: bool) -> void:
 
 func _begin_session() -> void:
 	running = false
+	visible = true
+	streamer.set_process(true)
+	traffic.enabled = true
+	cam.cam.make_current()
 	cam.orbit_mode = false
 	Game.in_world = false
 	if player_car and is_instance_valid(player_car):
@@ -295,6 +298,17 @@ func _begin_session() -> void:
 		await get_tree().process_frame
 	streamer.builds_per_frame = 1
 	streamer.max_inflight = 2
+	if not warmed:
+		warmed = true
+		loading_progress.emit(0.9, "Preparing shaders")
+		var passes: int = 2 if OS.get_cmdline_user_args().has("--warmprof") else 1
+		for pass_i in range(passes):
+			var wu := WarmUp.new()
+			wu.profile = passes > 1
+			add_child(wu)
+			var t_w: int = Time.get_ticks_msec()
+			await wu.run(self)
+			print("WARMUP pass %d done in %d ms" % [pass_i + 1, Time.get_ticks_msec() - t_w])
 	loading_progress.emit(0.95, "Preparing vehicle")
 	await get_tree().process_frame
 	if police == null:
@@ -534,11 +548,25 @@ func _input(ev: InputEvent) -> void:
 func apply_look(dx: float, dy: float) -> void:
 	cam.add_look(dx, dy)
 
+var warmed: bool = false
+var test_fly: Vector3 = Vector3.ZERO
+
 func _physics_process(dt: float) -> void:
 	if not running:
 		return
+	if test_fly != Vector3.ZERO and player_car:
+		player_car.global_position += test_fly * dt
+		player_car.linear_velocity = test_fly
 	var fnode: Node3D = focus_node()
 	streamer.focus = fnode.global_position
+	var fv: Vector3 = Vector3.ZERO
+	if player_car and fnode == player_car:
+		fv = player_car.linear_velocity
+		fv.y = 0.0
+	var lead_v: Vector3 = fv * 1.6
+	if lead_v.length() > 160.0:
+		lead_v = lead_v.normalized() * 160.0
+	streamer.lead = streamer.lead.lerp(lead_v, clampf(dt * 1.5, 0.0, 1.0))
 	exit_cooldown = maxf(0.0, exit_cooldown - dt)
 	if not ui_open:
 		_handle_input(dt)

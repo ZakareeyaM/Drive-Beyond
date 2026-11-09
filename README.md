@@ -78,3 +78,10 @@ Missions are plain JSON — add your own entries to `data/missions/missions.json
 - Buildings from both packs: `tools/extract_buildings.py` -> `assets/buildings/pack/`, placed by `scripts/world/pack_district.gd` (no shadows, distance culled, box colliders).
 - Prices: `FUEL_PRICE` / `repair_fee()` in `world.gd`; vehicle prices/specs in `tools/gen_pack_vehicles.py`.
 - Build the APK with the existing GitHub Actions workflow (no local Android SDK).
+
+## Menu / icon / streaming / reverse update
+- Main menu: `scripts/ui/menus.gd` (`main_menu`, responsive, container based), background `scripts/ui/menu_background.gd` + `shaders/menu_water.gdshader` (own tiny 3D scene; gameplay world is hidden and not streamed while the menu shows). `main.gd` shows/frees the background; `World.start_menu()` / `_begin_session()` switch the world off/on.
+- Icon: `icon.png` (project), `assets/UI/icon_192.png`, `icon_fg_432.png`, `icon_bg_432.png` (export_presets.cfg launcher icons) all made from the supplied artwork (`assets/UI/Drive_Beyond_icon_source.png`).
+- Streaming: `terrain_streamer.gd` predictive loading (`lead`), per-chunk timing probes (`prof_*`); `scripts/world/warmup.gd` pre-draws one instance of every world asset/vehicle behind the loading screen (first-use shader/texture cost).
+- Reverse -> forward: `vehicle.gd` (`rev_assist`), test: `tests/reverse_test.tscn`.
+- Test hooks: `--cmd=` list in `main.gd`; `--spikes`, `--warmprof` user args.

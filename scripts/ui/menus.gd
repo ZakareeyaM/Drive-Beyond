@@ -18,62 +18,116 @@ static func _center_panel(min_w: float) -> Array:
 	return [bg, v]
 
 # ---------------------------------------------------------------- main menu
+## Main menu: centred title / subtitle / button stack over the MenuBackground scene.  Everything is laid out with
+## containers and sized from the viewport (re-laid-out on resize), so it adapts to any landscape resolution.
 static func main_menu(on_continue: Callable, on_new: Callable, on_settings: Callable, on_credits: Callable, on_quit: Callable) -> Control:
 	var root := Control.new()
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	var shade := ColorRect.new()
-	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	shade.color = Color(0, 0, 0, 0.0)
-	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root.add_child(shade)
-	var grad := TextureRect.new()
+	# soft darkening at the top/bottom so the white title and the footer stay readable on the bright sky/water
+	var tint := TextureRect.new()
 	var g := Gradient.new()
-	g.colors = PackedColorArray([Color(0, 0, 0, 0.88), Color(0, 0, 0, 0.55), Color(0, 0, 0, 0.0)])
-	g.offsets = PackedFloat32Array([0.0, 0.45, 0.85])
+	g.colors = PackedColorArray([Color(0.02, 0.06, 0.14, 0.38), Color(0, 0, 0, 0.0), Color(0, 0, 0, 0.0), Color(0.0, 0.04, 0.1, 0.35)])
+	g.offsets = PackedFloat32Array([0.0, 0.28, 0.72, 1.0])
 	var gt := GradientTexture2D.new()
 	gt.gradient = g
 	gt.fill_from = Vector2(0, 0)
-	gt.fill_to = Vector2(1, 0)
-	gt.width = 256
-	gt.height = 4
-	grad.texture = gt
-	grad.stretch_mode = TextureRect.STRETCH_SCALE
-	grad.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	grad.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root.add_child(grad)
-	var m := MarginContainer.new()
-	m.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	m.add_theme_constant_override("margin_left", 70)
-	m.add_theme_constant_override("margin_top", 36)
-	m.add_theme_constant_override("margin_bottom", 24)
-	m.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root.add_child(m)
+	gt.fill_to = Vector2(0, 1)
+	gt.width = 4
+	gt.height = 128
+	tint.texture = gt
+	tint.stretch_mode = TextureRect.STRETCH_SCALE
+	tint.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	tint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(tint)
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(center)
 	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 8)
-	v.custom_minimum_size = Vector2(420, 0)
-	v.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	m.add_child(v)
-	# landscape: one-line title so the button stack fits on a 16:9 / 20:9 screen
+	v.alignment = BoxContainer.ALIGNMENT_CENTER
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	center.add_child(v)
 	var title_row := HBoxContainer.new()
-	title_row.add_theme_constant_override("separation", 16)
-	title_row.add_child(UIKit.label("DRIVE", 64, Color.WHITE))
-	title_row.add_child(UIKit.label("BEYOND", 64, UIKit.RED))
+	title_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	title_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var t1: Label = UIKit.label("DRIVE", 64, Color.WHITE)
+	var t2: Label = UIKit.label("BEYOND", 64, Color(0.88, 0.12, 0.2))
+	for t in [t1, t2]:
+		t.add_theme_constant_override("outline_size", 6)
+		t.add_theme_color_override("font_outline_color", Color(0.02, 0.05, 0.12, 0.55))
+		t.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.35))
+		t.add_theme_constant_override("shadow_offset_y", 3)
+		title_row.add_child(t)
 	v.add_child(title_row)
-	v.add_child(UIKit.label("Explore. Drive. Survive.", 26, UIKit.MUTED))
-	v.add_child(UIKit.spacer(8))
+	var sub: Label = UIKit.label("Explore. Drive. Survive.", 26, Color(0.93, 0.95, 1.0, 0.9), 1)
+	sub.add_theme_constant_override("outline_size", 5)
+	sub.add_theme_color_override("font_outline_color", Color(0.02, 0.06, 0.14, 0.6))
+	v.add_child(sub)
+	var gap := Control.new()
+	v.add_child(gap)
+	var buttons: Array = []
 	if Game.has_save:
-		v.add_child(UIKit.accent_button("Continue", on_continue, 52, 400))
-	v.add_child(UIKit.accent_button("New Game" if not Game.has_save else "New Game (overwrites save)", on_new, 52, 400) if not Game.has_save else UIKit.button("New Game", on_new, 52, 400))
-	v.add_child(UIKit.button("Settings", on_settings, 52, 400))
-	v.add_child(UIKit.button("Credits", on_credits, 52, 400))
+		buttons.append(_menu_button("Continue", on_continue, true))
+		buttons.append(_menu_button("New Game", on_new, false))
+	else:
+		buttons.append(_menu_button("New Game", on_new, true))
+	buttons.append(_menu_button("Settings", on_settings, false))
+	buttons.append(_menu_button("Credits", on_credits, false))
 	if not Game.is_mobile and not OS.has_feature("web"):
-		v.add_child(UIKit.button("Quit", on_quit, 52, 400))
-	var ver := UIKit.label("v1.0   |   Godot 4  |  all assets procedural", 15, UIKit.MUTED)
-	var sp := Control.new()
-	sp.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	v.add_child(sp)
-	v.add_child(ver)
+		buttons.append(_menu_button("Quit", on_quit, false))
+	for b in buttons:
+		v.add_child(b)
+	var ver := UIKit.label("Drive Beyond  |  Godot 4", 15, Color(0.92, 0.95, 1.0, 0.6), 1)
+	ver.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
+	ver.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	ver.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	ver.offset_bottom = -10
+	ver.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(ver)
+	# responsive sizing: everything derives from the viewport height / width
+	var relayout := func() -> void:
+		var sz: Vector2 = root.size
+		if sz.x < 10.0 or sz.y < 10.0:
+			return
+		var h: float = sz.y
+		var tsize: int = int(clampf(h * 0.105, 34.0, 92.0))
+		t1.add_theme_font_size_override("font_size", tsize)
+		t2.add_theme_font_size_override("font_size", tsize)
+		title_row.add_theme_constant_override("separation", int(tsize * 0.28))
+		sub.add_theme_font_size_override("font_size", int(clampf(h * 0.04, 16.0, 34.0)))
+		var bw: float = clampf(sz.x * 0.29, 250.0, 520.0)
+		var bh: float = clampf(h * 0.085, 46.0, 72.0)
+		var fs: int = int(clampf(bh * 0.4, 18.0, 28.0))
+		var sep: int = int(bh * 0.14)
+		v.add_theme_constant_override("separation", sep)
+		gap.custom_minimum_size = Vector2(0, h * 0.02)
+		for b2 in buttons:
+			var bb: Button = b2
+			bb.custom_minimum_size = Vector2(bw, bh)
+			bb.add_theme_font_size_override("font_size", fs)
+		ver.add_theme_font_size_override("font_size", int(clampf(h * 0.028, 12.0, 18.0)))
+	root.resized.connect(relayout)
+	root.ready.connect(relayout)
 	return root
+
+static func _menu_button(text: String, cb: Callable, primary: bool) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.focus_mode = Control.FOCUS_NONE
+	if cb.is_valid():
+		b.pressed.connect(cb)
+	var base: Color = Color(0.54, 0.03, 0.08, 0.97) if primary else Color(0.09, 0.09, 0.14, 0.93)
+	var hover: Color = Color(0.72, 0.06, 0.12, 1.0) if primary else Color(0.17, 0.18, 0.26, 0.97)
+	var pressed: Color = Color(0.4, 0.02, 0.06, 1.0) if primary else Color(0.05, 0.05, 0.09, 1.0)
+	var rim: Color = Color(1, 1, 1, 0.85) if primary else Color(1, 1, 1, 0.12)
+	b.add_theme_stylebox_override("normal", UIKit.box(base, 9, rim, 1, 18))
+	b.add_theme_stylebox_override("hover", UIKit.box(hover, 9, Color(1, 1, 1, 0.9) if primary else Color(1, 1, 1, 0.35), 2 if not primary else 1, 18))
+	b.add_theme_stylebox_override("pressed", UIKit.box(pressed, 9, Color(1, 1, 1, 0.7), 1, 18))
+	b.add_theme_stylebox_override("focus", UIKit.box(Color(0, 0, 0, 0), 9, Color(1, 1, 1, 0.8), 2, 18))
+	b.add_theme_color_override("font_color", Color.WHITE)
+	b.add_theme_color_override("font_hover_color", Color.WHITE)
+	b.add_theme_color_override("font_pressed_color", Color(1, 1, 1, 0.85))
+	return b
 
 # ---------------------------------------------------------------- pause
 static func pause_menu(world: World, on_resume: Callable, on_map: Callable, on_settings: Callable, on_save: Callable, on_abandon: Callable, on_quit: Callable) -> Control:
@@ -99,8 +153,8 @@ static func credits(on_back: Callable) -> Control:
 	var arr: Array = _center_panel(760)
 	var v: VBoxContainer = arr[1]
 	v.add_child(UIKit.title_bar("CREDITS"))
-	var txt: Array = ["DRIVE BEYOND", "Design, code and every asset generated procedurally in Godot 4 (GDScript).",
-		"No third-party art, audio or models are used: vehicles, world, textures, shaders and music are created in code.",
+	var txt: Array = ["DRIVE BEYOND", "Design and code in Godot 4 (GDScript). World, many vehicles, shaders and music are generated in code.",
+		"Imported 3D models: BMW M6, traffic-pack cars, city/apartment buildings and the petrol station (see assets/).",
 		"", "Built for Zak (ZakareeyaM)", "", "Explore. Drive. Survive."]
 	for t in txt:
 		v.add_child(UIKit.label(t, 20, UIKit.TEXT if t != "" else UIKit.MUTED, 1))

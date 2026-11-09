@@ -16,8 +16,15 @@ var mutex := Mutex.new()
 var max_inflight: int = 2
 var builds_per_frame: int = 1
 var focus: Vector3 = Vector3.ZERO
+## predictive loading: chunks are requested around focus + lead (velocity * ~1.5 s, capped), so the area ahead of the
+## vehicle is already built when it arrives; unloading still uses the real position (plus margin) so turning back is safe
+var lead: Vector3 = Vector3.ZERO
 var _last_center: Vector2i = Vector2i(-999, -999)
 var _timer: float = 0.0
+## lightweight diagnostics (ms): worker build time and main-thread instantiate time per chunk
+var prof_build: Array = []
+var prof_inst: Array = []
+var prof_frame_max: float = 0.0
 
 func setup(w: WorldGen, a: Dictionary) -> void:
 	world = w
@@ -52,8 +59,15 @@ func _wanted(center: Vector2i) -> Array:
 	return list
 
 func _request() -> void:
-	var c: Vector2i = world.chunk_of(focus.x, focus.z)
-	var list: Array = _wanted(c)
+	var c_real: Vector2i = world.chunk_of(focus.x, focus.z)
+	var c: Vector2i = world.chunk_of(focus.x + lead.x, focus.z + lead.z)
+	var list: Array = []
+	# the ring right around the real position always comes first (so a turn-around never meets a hole) ...
+	for it in _wanted(c_real):
+		if it[0] <= 4:
+			list.append(it)
+	# ... then the predicted area ahead
+	list.append_array(_wanted(c))
 	var want_keys: Dictionary = {}
 	for it in list:
 		want_keys[world.key(it[1], it[2])] = true
@@ -63,7 +77,9 @@ func _request() -> void:
 		var node: Node3D = chunks[k]
 		var cx: int = int(k) / 1000
 		var cz: int = int(k) % 1000
-		if (cx - c.x) * (cx - c.x) + (cz - c.y) * (cz - c.y) > (radius + 1) * (radius + 1) + 2:
+		var near_lead: bool = (cx - c.x) * (cx - c.x) + (cz - c.y) * (cz - c.y) <= (radius + 1) * (radius + 1) + 2
+		var near_real: bool = (cx - c_real.x) * (cx - c_real.x) + (cz - c_real.y) * (cz - c_real.y) <= (radius + 1) * (radius + 1) + 2
+		if not near_lead and not near_real:
 			drop.append(k)
 	for k in drop:
 		(chunks[k] as Node3D).queue_free()
@@ -81,7 +97,9 @@ func _request() -> void:
 		WorkerThreadPool.add_task(_work.bind(cx2, cz2))
 
 func _work(cx: int, cz: int) -> void:
+	var t0: int = Time.get_ticks_usec()
 	var d: Dictionary = ChunkBuilder.build(world, cx, cz)
+	d["build_ms"] = float(Time.get_ticks_usec() - t0) / 1000.0
 	mutex.lock()
 	finished.append(d)
 	mutex.unlock()
@@ -98,14 +116,21 @@ func _collect() -> void:
 			return
 		var k: int = world.key(d["cx"], d["cz"])
 		pending.erase(k)
-		var c: Vector2i = world.chunk_of(focus.x, focus.z)
+		var c: Vector2i = world.chunk_of(focus.x + lead.x, focus.z + lead.z)
+		var c2: Vector2i = world.chunk_of(focus.x, focus.z)
 		var cx: int = d["cx"]
 		var cz: int = d["cz"]
-		if (cx - c.x) * (cx - c.x) + (cz - c.y) * (cz - c.y) > (radius + 1) * (radius + 1) + 2 or chunks.has(k):
+		var far_lead: bool = (cx - c.x) * (cx - c.x) + (cz - c.y) * (cz - c.y) > (radius + 1) * (radius + 1) + 2
+		var far_real: bool = (cx - c2.x) * (cx - c2.x) + (cz - c2.y) * (cz - c2.y) > (radius + 1) * (radius + 1) + 2
+		if (far_lead and far_real) or chunks.has(k):
 			n += 1
 			continue
+		var t1: int = Time.get_ticks_usec()
 		var node: Node3D = ChunkBuilder.instantiate(d, assets, quality)
 		add_child(node)
+		var im: float = float(Time.get_ticks_usec() - t1) / 1000.0
+		prof_inst.append(im)
+		prof_build.append(float(d.get("build_ms", 0.0)))
 		chunks[k] = node
 		chunk_loaded.emit(cx, cz)
 		n += 1

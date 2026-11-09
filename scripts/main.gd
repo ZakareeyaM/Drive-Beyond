@@ -10,6 +10,7 @@ var hud: Hud
 var touch: TouchControls
 var theme: Theme
 var menu_root: Control = null
+var menu_bg: MenuBackground = null
 var screen: Control = null
 var screen_kind: String = ""
 var loading: Menus.LoadingScreen = null
@@ -105,9 +106,16 @@ func show_main_menu() -> void:
 	hud.visible = false
 	_clear_menu()
 	Game.has_save = FileAccess.file_exists(Game.SAVE_PATH) or FileAccess.file_exists(Game.SAVE_BAK)
+	_show_menu_bg()
 	menu_root = Menus.main_menu(_on_continue, _on_new, _on_settings_from_menu, _on_credits, _on_quit)
 	ui_root.add_child(menu_root)
 	get_tree().paused = false
+
+func _show_menu_bg() -> void:
+	if menu_bg == null:
+		menu_bg = MenuBackground.new()
+		add_child(menu_bg)
+	menu_bg.activate()
 
 func _clear_menu() -> void:
 	if menu_root:
@@ -139,6 +147,9 @@ func _on_credits() -> void:
 
 func _start(load_save: bool) -> void:
 	_clear_menu()
+	if menu_bg:
+		menu_bg.queue_free()
+		menu_bg = null
 	loading = Menus.LoadingScreen.new()
 	ui_root.add_child(loading)
 	await get_tree().process_frame
@@ -151,6 +162,19 @@ func _start(load_save: bool) -> void:
 
 func _process(_delta: float) -> void:
 	frames += 1
+	if frames > 60:
+		_ft_max = maxf(_ft_max, _delta * 1000.0)
+		if _delta > 0.033:
+			_ft_over += 1
+		if _log_spikes and _delta > 0.05 and in_game:
+			print("SPIKE f=%d %.0fms chunks_inst=%d (+%d) traffic=%d proc=%.1fms phys=%.1fms obj=%d" % [frames, _delta * 1000.0, world.streamer.prof_inst.size(), world.streamer.prof_inst.size() - _last_inst, world.traffic.cars.size(), Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0, Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0, int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT))])
+		if in_game and _log_spikes:
+			var ph: float = Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0
+			if world.streamer.prof_inst.size() != _last_inst:
+				_ph_add.append(ph)
+			else:
+				_ph_idle.append(ph)
+		_last_inst = world.streamer.prof_inst.size() if in_game else 0
 	if quit_after > 0 and frames >= quit_after:
 		get_tree().quit()
 	if script_cmds.size() > 0 and ((in_game and world.running) or menu_root != null) and frames % 120 == 0:
@@ -167,6 +191,11 @@ func _apply_mouse_mode() -> void:
 		Input.mouse_mode = want as Input.MouseMode
 
 func _run_cmd(c: String) -> void:
+	if c == "m_settings_shot":
+		_on_settings_from_menu()
+		await get_tree().create_timer(1.5).timeout
+		get_viewport().get_texture().get_image().save_png("/tmp/gd/ui_b_settings.png")
+		return
 	if c.begins_with("shot_"):
 		get_viewport().get_texture().get_image().save_png("/tmp/gd/ui_%s.png" % c.substr(5))
 		return
@@ -195,6 +224,29 @@ func _run_cmd(c: String) -> void:
 		"fill_start": (screen as RefuelUI)._toggle()
 		"fill_stop": (screen as RefuelUI)._stop()
 		"repair_go": (screen as RepairUI)._repair()
+		"fly": world.test_fly = Vector3(0, 0, 45)
+		"fly_stop": world.test_fly = Vector3.ZERO
+		"prof_reset":
+			world.streamer.prof_inst.clear()
+			world.streamer.prof_build.clear()
+			_ft_max = 0.0
+			_ft_over = 0
+		"prof_report":
+			var pa: Array = _ph_add.duplicate()
+			pa.sort()
+			var pi: Array = _ph_idle.duplicate()
+			pi.sort()
+			print("PHYS frames with chunk add: n=%d avg=%.2f max=%.2f | idle frames: n=%d avg=%.2f p99=%.2f max=%.2f" % [pa.size(), _avg(pa), (pa.back() if pa.size() > 0 else 0.0), pi.size(), _avg(pi), (pi[int(pi.size() * 0.99)] if pi.size() > 0 else 0.0), (pi.back() if pi.size() > 0 else 0.0)])
+			var a: Array = world.streamer.prof_inst
+			var b: Array = world.streamer.prof_build
+			var sa: Array = a.duplicate()
+			sa.sort()
+			print("PROF chunks=%d inst avg=%.2f p95=%.2f max=%.2f | build avg=%.1f max=%.1f | worst frame=%.1f ms frames>33ms=%d" % [a.size(), _avg(a), (sa[int(sa.size() * 0.95)] if sa.size() > 0 else 0.0), (sa.back() if sa.size() > 0 else 0.0), _avg(b), (b.max() if b.size() > 0 else 0.0), _ft_max, _ft_over])
+		"m_settings": _on_settings_from_menu()
+		"m_credits": _on_credits()
+		"m_new": _on_new()
+		"quit_menu": _quit_to_menu()
+		"m_back": show_main_menu()
 		"close": _close_screen()
 		"buy_try": (screen as DealershipUI)._ask_buy()
 		"buy_go": (screen as DealershipUI)._buy()
@@ -482,3 +534,18 @@ func _crash_report() -> void:
 	var d: float = car.global_position.distance_to(_ct_target) if _ct_target != Vector3.ZERO else -1.0
 	print("CRASHRESULT kind=%s v0=%.0f speed_now=%.1f dmg=%.3f last_impact=%.1f dist_to_target=%.1f lamps_broken=%s wrecked=%s" % [_ct_kind, _ct_v0, car.abs_speed, car.damage, car.last_impact, d, car.lamps_broken, car.wrecked])
 	Input.action_release("accelerate")
+
+var _ft_max: float = 0.0
+var _last_inst: int = 0
+var _ph_add: Array = []
+var _ph_idle: Array = []
+var _log_spikes: bool = OS.get_cmdline_user_args().has("--spikes")
+var _ft_over: int = 0
+
+func _avg(a: Array) -> float:
+	if a.is_empty():
+		return 0.0
+	var t: float = 0.0
+	for x in a:
+		t += float(x)
+	return t / float(a.size())
