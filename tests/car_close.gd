@@ -30,6 +30,8 @@ func _ready() -> void:
 	RenderingServer.global_shader_parameter_set("night", float(ua[3]) if ua.size() > 3 else 0.0)
 	RenderingServer.global_shader_parameter_set("wet", 0.0)
 	var custom: Dictionary = Data.default_custom(vid)
+	if ua.size() > 4:
+		custom["paint"] = int(ua[4])
 	var b: Dictionary = CarBuilder.build(vid, custom)
 	var n: Node3D = b["root"]
 	add_child(n)

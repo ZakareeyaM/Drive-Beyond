@@ -49,8 +49,57 @@ const REGISTRY := {
 	},
 }
 
+static var _pack_cache: Dictionary = {}
+
 static func has(vid: String) -> bool:
-	return REGISTRY.has(vid)
+	return REGISTRY.has(vid) or is_pack(vid)
+
+static func is_pack(vid: String) -> bool:
+	return _pack(vid).size() > 0
+
+static func _pack(vid: String) -> Dictionary:
+	if _pack_cache.is_empty():
+		for e in PackVehicles.LIST:
+			_pack_cache[e["spec"]["id"]] = e
+		_pack_cache["_"] = {}
+	return _pack_cache.get(vid, {})
+
+## Config of a traffic-pack car (assets/vehicles/pack/<id>.glb, already in metres / car space).
+## Lamp, glass and collision data are derived from the measured model dimensions.
+static func _pack_cfg(vid: String) -> Dictionary:
+	var e: Dictionary = _pack(vid)
+	var m: Dictionary = e["model"]
+	var sp: Dictionary = e["spec"]
+	var H: float = float(m["height"])
+	var W: float = float(sp["W"])
+	var zmin: float = float(m["zmin"])
+	var zmax: float = float(m["zmax"])
+	var hw: float = float(m["width"]) * 0.5
+	var L: float = zmax - zmin
+	var hy: float = H * 0.45
+	var ty: float = H * 0.52
+	var lx: float = hw * 0.62
+	var lo_h: float = H * 0.58
+	var cfgd: Dictionary = {
+		"pack": true, "glb": "res://assets/vehicles/pack/%s.glb" % vid, "scale": 1.0,
+		"paint_rgb": Color(m["paint_rgb"][0], m["paint_rgb"][1], m["paint_rgb"][2]),
+		"head_spots": [Vector3(-lx, hy, zmin), Vector3(lx, hy, zmin)],
+		"tail_lamps": [{"pos": Vector3(-lx, ty, zmax), "size": Vector3(0.28, 0.1, 0.02)}, {"pos": Vector3(lx, ty, zmax), "size": Vector3(0.28, 0.1, 0.02)}],
+		"head_lamps": [Vector3(-lx, hy, zmin), Vector3(lx, hy, zmin)],
+		"glass": [],
+		"collision_pack": [
+			{"pos": Vector3(0, 0.22 + (lo_h - 0.22) * 0.5, (zmin + zmax) * 0.5), "size": Vector3(W, lo_h - 0.22, L * 0.98)},
+			{"pos": Vector3(0, lo_h + (H * 0.97 - lo_h) * 0.5, zmin + L * 0.52), "size": Vector3(W * 0.88, H * 0.97 - lo_h, L * 0.46)},
+		],
+		"cam": {"dist": 1.0, "height": maxf(0.0, H - 1.5) * 0.8},
+	}
+	return cfgd
 
 static func cfg(vid: String) -> Dictionary:
-	return REGISTRY.get(vid, {})
+	if REGISTRY.has(vid):
+		return REGISTRY[vid]
+	if is_pack(vid):
+		if not _pack_cache.has("cfg_" + vid):
+			_pack_cache["cfg_" + vid] = _pack_cfg(vid)
+		return _pack_cache["cfg_" + vid]
+	return {}

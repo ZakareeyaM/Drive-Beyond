@@ -12,6 +12,7 @@ extends RefCounted
 ##    provides the dent / wear parameters used by the existing damage system.
 
 const BODY_SHADER := "res://shaders/glb_body.gdshader"
+const PACK_SHADER := "res://shaders/pack_body.gdshader"
 static var _cache: Dictionary = {}
 
 static func _collect(n: Node, xf: Transform3D, out: Array) -> void:
@@ -101,15 +102,42 @@ static func _bake(vid: String) -> Dictionary:
 	return {"body": body, "wheels": wheels, "origin": origin, "base": base, "wheel_car": wheel_car, "wheel_radius": wr,
 			"body_tris": body_pieces.size(), "wheel_piece_counts": [wheel_pieces[0].size(), wheel_pieces[1].size(), wheel_pieces[2].size(), wheel_pieces[3].size()]}
 
+## Traffic-pack car: the GLB was pre-split by tools/split_traffic_pack.py (Body + Wheel_0..3, metres, origin on the
+## ground between the axles), so nothing has to be detected or merged at run time.
+static func _bake_pack(vid: String) -> Dictionary:
+	var cfg: Dictionary = VehicleModels.cfg(vid)
+	var ps: PackedScene = load(String(cfg["glb"])) as PackedScene
+	if ps == null:
+		push_error("GlbVehicle: cannot load " + String(cfg["glb"]))
+		return {}
+	var inst: Node = ps.instantiate()
+	var body_n: MeshInstance3D = inst.find_child("Body", true, false) as MeshInstance3D
+	var wheels: Array = []
+	var wcar: Array = []
+	for i in range(4):
+		var wn: MeshInstance3D = inst.find_child("Wheel_%d" % i, true, false) as MeshInstance3D
+		if wn == null or body_n == null:
+			push_error("GlbVehicle: %s is missing Body/Wheel_%d" % [vid, i])
+			inst.free()
+			return {}
+		wheels.append(wn.mesh)
+		wcar.append(wn.position)
+	var body: Mesh = body_n.mesh
+	inst.free()
+	return {"body": body, "wheels": wheels, "origin": Vector3.ZERO, "base": Transform3D.IDENTITY, "wheel_car": wcar,
+			"wheel_radius": float(Data.vehicle(vid)["wr"]), "pack": true}
+
 static func baked(vid: String) -> Dictionary:
 	if not _cache.has(vid):
-		_cache[vid] = _bake(vid)
+		_cache[vid] = _bake_pack(vid) if VehicleModels.is_pack(vid) else _bake(vid)
 	return _cache[vid]
 
 static func to_car(data: Dictionary, p: Vector3) -> Vector3:
 	return (data["base"] as Transform3D) * (p - (data["origin"] as Vector3))
 
 static func _quad_mesh(quads: Array, data: Dictionary) -> ArrayMesh:
+	if quads.is_empty():
+		return ArrayMesh.new()
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for q in quads:
@@ -126,6 +154,8 @@ static func _lamp_mesh(cfg: Dictionary, data: Dictionary, head: bool) -> ArrayMe
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var sc: float = float(cfg["scale"])
+	if bool(cfg.get("pack", false)):
+		return ArrayMesh.new()   # lamps are part of the texture; the lights themselves are SpotLights at head_pos/tail_pos
 	if head:
 		var cm := CylinderMesh.new()
 		cm.top_radius = float(cfg["head_lamp_radius"]) * sc
@@ -161,7 +191,8 @@ static func build(vid: String, custom: Dictionary) -> Dictionary:
 	out["body_mi"] = body
 	var c1: Color = Data.PAINTS[int(custom.get("paint", 0)) % Data.PAINTS.size()]["c"]
 	var dent_arr: Array = [Vector4.ZERO, Vector4.ZERO, Vector4.ZERO, Vector4.ZERO]
-	var shader: Shader = load(BODY_SHADER)
+	var pack: bool = bool(cfg.get("pack", false))
+	var shader: Shader = load(PACK_SHADER if pack else BODY_SHADER)
 	var paint_names: Array = cfg.get("paint_materials", ["material_0"])
 	var paint: ShaderMaterial = null
 	var extra: Array = []
@@ -174,7 +205,12 @@ static func build(vid: String, custom: Dictionary) -> Dictionary:
 			sm.set_shader_parameter("paint1", c1)
 			sm.set_shader_parameter("dents", dent_arr)
 			var is_paint: bool = paint_names.has(src.resource_name)
+			if pack:   # stock paint = the model's own texture; any other colour re-tints the paint texels
+				is_paint = int(custom.get("paint", 0)) != int(spec.get("paint", 0))
 			sm.set_shader_parameter("repaint", 1.0 if is_paint else 0.0)
+			if pack:
+				var pc: Color = cfg["paint_rgb"]
+				sm.set_shader_parameter("src_rgb", Vector3(pc.r, pc.g, pc.b))
 			body.set_surface_override_material(s, sm)
 			if is_paint and paint == null:
 				paint = sm
@@ -238,6 +274,8 @@ static func collision_boxes(vid: String) -> Array:
 	var res: Array = []
 	if data.is_empty():
 		return res
+	if bool(cfg.get("pack", false)):
+		return cfg["collision_pack"]
 	for b in cfg.get("collision", []):
 		var a: Vector3 = to_car(data, b["min"])
 		var c: Vector3 = to_car(data, b["max"])

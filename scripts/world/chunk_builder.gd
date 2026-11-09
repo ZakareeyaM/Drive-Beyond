@@ -263,6 +263,10 @@ static func build(w: WorldGen, cx: int, cz: int) -> Dictionary:
 			var cust := Color(float(b.get("lit", 0.5)), float(b.get("win", 1.0)), float(b.get("seed", 1.0)), 0.0)
 			var by0: float = p.y - 0.3
 			var basis := Basis(Vector3.UP, yaw)
+			if kind2 == "pack":
+				_append_box(coll, Transform3D(basis, Vector3(p.x, by0 + s.y * 0.5, p.z)), Vector3(s.x * 0.96, s.y, s.z * 0.96))
+				ncoll += 1
+				continue
 			if kind2 == "house" or kind2 == "barn":
 				var wall: float = 3.1 if kind2 == "house" else s.y * 0.6
 				_mm_add(mm, "bld", Transform3D(basis.scaled(Vector3(s.x, wall + 0.3, s.z)), Vector3(p.x, by0, p.z)), col, cust, true, true)

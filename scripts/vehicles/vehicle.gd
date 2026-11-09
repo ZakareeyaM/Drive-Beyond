@@ -477,7 +477,7 @@ func _physics_process(dt: float) -> void:
 		drift_time = 0.0
 	# --- fuel ---------------------------------------------------------------------------------------------------
 	if alive:
-		var burn: float = (0.00005 + 0.00018 * in_throttle * (accel / 8.0)) * (1.0 + 0.5 * float(boost > 1.0))
+		var burn: float = (0.00005 + 0.00018 * in_throttle * (accel / 8.0)) * (1.0 + 0.5 * float(boost > 1.0)) * (50.0 / Data.tank_litres(vid))   # bigger tank -> same litres/s, smaller fraction/s
 		fuel = maxf(0.0, fuel - burn * dt * (1.0 if abs_speed > 0.5 or in_throttle > 0.1 else 0.3))
 	distance_driven += abs_speed * dt
 	# --- visual fx ---------------------------------------------------------------------------------------------------

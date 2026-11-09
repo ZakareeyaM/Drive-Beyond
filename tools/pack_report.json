@@ -1,0 +1,522 @@
+{
+ "mazda_2": {
+  "length": 3.95,
+  "width": 1.859,
+  "height": 1.507,
+  "wheel_radius": 0.297,
+  "wheel_width": 0.205,
+  "wheelbase": 2.53,
+  "track_f": 1.477,
+  "track_r": 1.477,
+  "wheel_y": [
+   0.297,
+   0.297,
+   0.298,
+   0.298
+  ],
+  "bb_min": [
+   -0.929,
+   0.227,
+   -2.086
+  ],
+  "bb_max": [
+   0.929,
+   1.507,
+   1.864
+  ],
+  "scale_applied": 0.7065,
+  "tris_body": 1194,
+  "tris_wheels": 576,
+  "paint_rgb": [
+   0.786,
+   0.941,
+   0.779
+  ],
+  "wheel_order": [
+   "F-X",
+   "F+X",
+   "R-X",
+   "R+X"
+  ]
+ },
+ "renault_clio": {
+  "length": 4.06,
+  "width": 1.988,
+  "height": 1.454,
+  "wheel_radius": 0.321,
+  "wheel_width": 0.213,
+  "wheelbase": 2.628,
+  "track_f": 1.482,
+  "track_r": 1.482,
+  "wheel_y": [
+   0.321,
+   0.321,
+   0.322,
+   0.322
+  ],
+  "bb_min": [
+   -0.994,
+   0.196,
+   -2.172
+  ],
+  "bb_max": [
+   0.994,
+   1.454,
+   1.888
+  ],
+  "scale_applied": 0.6943,
+  "tris_body": 1398,
+  "tris_wheels": 720,
+  "paint_rgb": [
+   0.529,
+   0.026,
+   0.079
+  ],
+  "wheel_order": [
+   "F-X",
+   "F+X",
+   "R-X",
+   "R+X"
+  ]
+ },
+ "vw_golf7": {
+  "length": 4.26,
+  "width": 1.917,
+  "height": 1.496,
+  "wheel_radius": 0.332,
+  "wheel_width": 0.209,
+  "wheelbase": 2.724,
+  "track_f": 1.54,
+  "track_r": 1.54,
+  "wheel_y": [
+   0.332,
+   0.332,
+   0.332,
+   0.332
+  ],
+  "bb_min": [
+   -0.959,
+   0.189,
+   -2.166
+  ],
+  "bb_max": [
+   0.959,
+   1.496,
+   2.094
+  ],
+  "scale_applied": 0.7044,
+  "tris_body": 1406,
+  "tris_wheels": 576,
+  "paint_rgb": [
+   0.247,
+   0.382,
+   0.48
+  ],
+  "wheel_order": [
+   "F-X",
+   "F+X",
+   "R-X",
+   "R+X"
+  ]
+ },
+ "kia_ceed": {
+  "length": 4.29,
+  "width": 2.017,
+  "height": 1.468,
+  "wheel_radius": 0.318,
+  "wheel_width": 0.22,
+  "wheelbase": 2.689,
+  "track_f": 1.526,
+  "track_r": 1.526,
+  "wheel_y": [
+   0.318,
+   0.318,
+   0.318,
+   0.318
+  ],
+  "bb_min": [
+   -1.008,
+   0.172,
+   -2.236
+  ],
+  "bb_max": [
+   1.008,
+   1.468,
+   2.054
+  ],
+  "scale_applied": 0.6919,
+  "tris_body": 1414,
+  "tris_wheels": 720,
+  "paint_rgb": [
+   0.341,
+   0.36,
+   0.381
+  ],
+  "wheel_order": [
+   "F-X",
+   "F+X",
+   "R-X",
+   "R+X"
+  ]
+ },
+ "mazda_3": {
+  "length": 4.58,
+  "width": 1.957,
+  "height": 1.491,
+  "wheel_radius": 0.332,
+  "wheel_width": 0.229,
+  "wheelbase": 2.716,
+  "track_f": 1.592,
+  "track_r": 1.592,
+  "wheel_y": [
+   0.333,
+   0.333,
+   0.332,
+   0.332
+  ],
+  "bb_min": [
+   -0.979,
+   0.182,
+   -2.374
+  ],
+  "bb_max": [
+   0.979,
+   1.491,
+   2.206
+  ],
+  "scale_applied": 0.714,
+  "tris_body": 1194,
+  "tris_wheels": 648,
+  "paint_rgb": [
+   0.604,
+   0.069,
+   0.089
+  ],
+  "wheel_order": [
+   "F-X",
+   "F+X",
+   "R-X",
+   "R+X"
+  ]
+ },
+ "chevy_cruze": {
+  "length": 4.6,
+  "width": 1.974,
+  "height": 1.484,
+  "wheel_radius": 0.335,
+  "wheel_width": 0.27,
+  "wheelbase": 2.762,
+  "track_f": 1.547,
+  "track_r": 1.547,
+  "wheel_y": [
+   0.336,
+   0.336,
+   0.335,
+   0.335
+  ],
+  "bb_min": [
+   -0.987,
+   0.165,
+   -2.247
+  ],
+  "bb_max": [
+   0.987,
+   1.484,
+   2.353
+  ],
+  "scale_applied": 0.695,
+  "tris_body": 1724,
+  "tris_wheels": 720,
+  "paint_rgb": [
+   0.357,
+   0.077,
+   0.056
+  ],
+  "wheel_order": [
+   "F-X",
+   "F+X",
+   "R-X",
+   "R+X"
+  ]
+ },
+ "skoda_octavia": {
+  "length": 4.66,
+  "width": 2.014,
+  "height": 1.518,
+  "wheel_radius": 0.322,
+  "wheel_width": 0.252,
+  "wheelbase": 2.77,
+  "track_f": 1.504,
+  "track_r": 1.504,
+  "wheel_y": [
+   0.322,
+   0.322,
+   0.322,
+   0.322
+  ],
+  "bb_min": [
+   -1.007,
+   0.19,
+   -2.226
+  ],
+  "bb_max": [
+   1.007,
+   1.518,
+   2.434
+  ],
+  "scale_applied": 0.6944,
+  "tris_body": 1434,
+  "tris_wheels": 576,
+  "paint_rgb": [
+   0.779,
+   0.789,
+   0.817
+  ],
+  "wheel_order": [
+   "F-X",
+   "F+X",
+   "R-X",
+   "R+X"
+  ]
+ },
+ "bmw_4": {
+  "length": 4.64,
+  "width": 2.018,
+  "height": 1.374,
+  "wheel_radius": 0.329,
+  "wheel_width": 0.239,
+  "wheelbase": 2.82,
+  "track_f": 1.545,
+  "track_r": 1.545,
+  "wheel_y": [
+   0.329,
+   0.329,
+   0.329,
+   0.329
+  ],
+  "bb_min": [
+   -1.009,
+   0.143,
+   -2.195
+  ],
+  "bb_max": [
+   1.009,
+   1.374,
+   2.445
+  ],
+  "scale_applied": 0.6966,
+  "tris_body": 1132,
+  "tris_wheels": 648,
+  "paint_rgb": [
+   0.789,
+   0.804,
+   0.814
+  ],
+  "wheel_order": [
+   "F-X",
+   "F+X",
+   "R-X",
+   "R+X"
+  ]
+ },
+ "freelander": {
+  "length": 4.5,
+  "width": 2.128,
+  "height": 1.695,
+  "wheel_radius": 0.343,
+  "wheel_width": 0.276,
+  "wheelbase": 2.694,
+  "track_f": 1.562,
+  "track_r": 1.562,
+  "wheel_y": [
+   0.343,
+   0.343,
+   0.343,
+   0.343
+  ],
+  "bb_min": [
+   -1.064,
+   0.256,
+   -2.229
+  ],
+  "bb_max": [
+   1.064,
+   1.695,
+   2.271
+  ],
+  "scale_applied": 0.6949,
+  "tris_body": 1410,
+  "tris_wheels": 720,
+  "paint_rgb": [
+   0.172,
+   0.402,
+   0.649
+  ],
+  "wheel_order": [
+   "F-X",
+   "F+X",
+   "R-X",
+   "R+X"
+  ]
+ },
+ "vw_amarok": {
+  "length": 5.25,
+  "width": 2.223,
+  "height": 1.842,
+  "wheel_radius": 0.38,
+  "wheel_width": 0.255,
+  "wheelbase": 3.072,
+  "track_f": 1.661,
+  "track_r": 1.661,
+  "wheel_y": [
+   0.38,
+   0.38,
+   0.381,
+   0.381
+  ],
+  "bb_min": [
+   -1.112,
+   0.258,
+   -2.429
+  ],
+  "bb_max": [
+   1.112,
+   1.842,
+   2.821
+  ],
+  "scale_applied": 0.6953,
+  "tris_body": 2044,
+  "tris_wheels": 640,
+  "paint_rgb": [
+   0.352,
+   0.353,
+   0.358
+  ],
+  "wheel_order": [
+   "F-X",
+   "F+X",
+   "R-X",
+   "R+X"
+  ]
+ },
+ "ford_f150": {
+  "length": 5.9,
+  "width": 2.447,
+  "height": 1.891,
+  "wheel_radius": 0.398,
+  "wheel_width": 0.303,
+  "wheelbase": 3.757,
+  "track_f": 1.831,
+  "track_r": 1.831,
+  "wheel_y": [
+   0.398,
+   0.398,
+   0.398,
+   0.398
+  ],
+  "bb_min": [
+   -1.223,
+   0.241,
+   -2.795
+  ],
+  "bb_max": [
+   1.223,
+   1.891,
+   3.105
+  ],
+  "scale_applied": 0.7006,
+  "tris_body": 1182,
+  "tris_wheels": 576,
+  "paint_rgb": [
+   0.906,
+   0.882,
+   0.831
+  ],
+  "wheel_order": [
+   "F-X",
+   "F+X",
+   "R-X",
+   "R+X"
+  ]
+ },
+ "chevy_silverado": {
+  "length": 5.85,
+  "width": 2.293,
+  "height": 1.858,
+  "wheel_radius": 0.389,
+  "wheel_width": 0.285,
+  "wheelbase": 3.776,
+  "track_f": 1.697,
+  "track_r": 1.697,
+  "wheel_y": [
+   0.389,
+   0.389,
+   0.389,
+   0.389
+  ],
+  "bb_min": [
+   -1.146,
+   0.229,
+   -2.825
+  ],
+  "bb_max": [
+   1.146,
+   1.858,
+   3.025
+  ],
+  "scale_applied": 0.7023,
+  "tris_body": 1512,
+  "tris_wheels": 720,
+  "paint_rgb": [
+   0.653,
+   0.198,
+   0.263
+  ],
+  "wheel_order": [
+   "F-X",
+   "F+X",
+   "R-X",
+   "R+X"
+  ]
+ },
+ "ford_excursion": {
+  "length": 5.76,
+  "width": 2.411,
+  "height": 2.032,
+  "wheel_radius": 0.411,
+  "wheel_width": 0.324,
+  "wheelbase": 3.553,
+  "track_f": 1.636,
+  "track_r": 1.636,
+  "wheel_y": [
+   0.411,
+   0.411,
+   0.411,
+   0.411
+  ],
+  "bb_min": [
+   -1.205,
+   0.242,
+   -2.655
+  ],
+  "bb_max": [
+   1.205,
+   2.032,
+   3.105
+  ],
+  "scale_applied": 0.6968,
+  "tris_body": 1460,
+  "tris_wheels": 720,
+  "paint_rgb": [
+   0.515,
+   0.5,
+   0.497
+  ],
+  "wheel_order": [
+   "F-X",
+   "F+X",
+   "R-X",
+   "R+X"
+  ]
+ }
+}

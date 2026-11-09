@@ -42,6 +42,7 @@ var infl := PackedFloat32Array()
 var rh := PackedFloat32Array()
 var pads: Array = []
 var landmarks: Dictionary = {}
+var keepouts: Array = []           # Rect2 (x,z) areas where no trees/houses may be generated (petrol station, ...)
 var city_light_nodes: Array = []   # intersections that have traffic lights (node ids)
 var buildings: Dictionary = {}     # chunk key -> Array of building dicts
 var structures: Array = []         # special landmark structures (dealership, garage, etc.)
@@ -550,6 +551,37 @@ func _building_palette(rng: RandomNumberGenerator, downtown: bool) -> Color:
 		palette = [Color(0.3, 0.38, 0.5), Color(0.25, 0.3, 0.38), Color(0.5, 0.55, 0.62), Color(0.2, 0.25, 0.32), Color(0.4, 0.5, 0.55)]
 	return palette[rng.randi() % palette.size()]
 
+const STATION_BLOCK := Vector2i(3, 4)
+## extracted from the two building packs by tools/extract_buildings.py (assets/buildings/pack/<id>.glb)
+const PACK_TOWERS := ["city_tower_a", "city_tower_b", "city_tower_c", "city_tower_d"]
+const PACK_MID := ["city_block_a", "city_block_b", "city_block_c", "city_mid_a", "city_mid_b", "city_mid_c", "city_low_a"]
+
+## Residential blocks (south-east of the centre) are filled with Soviet apartment slabs, the mid ring with the
+## stylised mid-rise buildings, the centre alternates pack towers with the existing procedural skyscrapers.
+## Returns true when the lot was filled (or deliberately left empty).
+func _place_pack_lot(rng: RandomNumberGenerator, bi: int, bj: int, li: int, lj: int, p: Vector3, lot: float, dist: float) -> bool:
+	var residential: bool = bi >= 5 and bj >= 4 and dist < 760.0
+	if residential:
+		if li == 0:       # one long slab per lot row, running east-west, set back from the street
+			_add_pack(p + Vector3(lot * 0.5, 0.0, 0.0), "soviet_panelka", PI * 0.5, Vector3(13.1, 13.3, 42.7))
+		return true
+	if dist < 200.0:
+		if (li + lj + bi + bj) % 2 == 0:
+			_add_pack(p, PACK_TOWERS[rng.randi() % PACK_TOWERS.size()], float(rng.randi() % 4) * PI * 0.5, Vector3.ZERO)
+			return true
+		return false
+	if dist < 440.0 and rng.randf() < 0.7:
+		_add_pack(p, PACK_MID[rng.randi() % PACK_MID.size()], float(rng.randi() % 4) * PI * 0.5, Vector3.ZERO)
+		return true
+	return false
+
+func _add_pack(p: Vector3, id: String, yaw: float, size: Vector3) -> void:
+	var sz: Vector3 = size
+	if sz == Vector3.ZERO:
+		var r: Dictionary = (PackBuildings.SIZES.get(id, {}) as Dictionary)
+		sz = Vector3(float(r.get("w", 10.0)), float(r.get("h", 20.0)), float(r.get("d", 10.0)))
+	_add_building(p, sz, Color.WHITE, "pack", {"yaw": yaw, "pack": id})
+
 func _build_city() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value
@@ -564,6 +596,7 @@ func _build_city() -> void:
 	special[Vector2i(2, 6)] = "gas"
 	special[Vector2i(7, 3)] = "gas"
 	special[Vector2i(0, 4)] = "stadium"
+	special[STATION_BLOCK] = "station"
 	for bj in range(8):
 		for bi in range(8):
 			var cx: float = GRID_START + GRID_STEP * (bi + 0.5)
@@ -599,6 +632,11 @@ func _build_city() -> void:
 					structures.append({"type": "gas", "pos": Vector3(cx, gh, cz), "size": Vector3(40, 6, 30)})
 					landmarks["gas_%d_%d" % [bi, bj]] = Vector3(cx, gh, cz)
 					continue
+				"station":
+					structures.append({"type": "station", "pos": Vector3(cx, gh, cz), "size": Vector3(108, 1, 108)})
+					landmarks["station"] = Vector3(cx, gh, cz)
+					keepouts.append(Rect2(cx - 54.0, cz - 54.0, 108.0, 108.0))
+					continue
 				"stadium":
 					structures.append({"type": "stadium", "pos": Vector3(cx, gh, cz), "size": Vector3(80, 18, 96)})
 					landmarks["stadium"] = Vector3(cx, gh, cz)
@@ -616,6 +654,8 @@ func _build_city() -> void:
 					var fw: float = lot_size * rng.randf_range(0.62, 0.85)
 					var fd: float = lot_size * rng.randf_range(0.62, 0.85)
 					var kind: String = "apartment"
+					if _place_pack_lot(rng, bi, bj, li, lj, Vector3(lx, gh, lz), lot_size, dist):
+						continue
 					if down:
 						h = rng.randf_range(55.0, 190.0) * (1.25 - dist / 520.0)
 						kind = "tower"
@@ -788,6 +828,9 @@ func _build_city() -> void:
 	ready_flag = true
 
 func _free_of_roads(x: float, z: float, r: float) -> bool:
+	for k in keepouts:
+		if (k as Rect2).grow(r).has_point(Vector2(x, z)):
+			return false
 	var ix: int = int(round((x + HALF) / CELL))
 	var iz: int = int(round((z + HALF) / CELL))
 	var rc: int = int(ceil(r / CELL))

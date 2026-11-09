@@ -48,7 +48,7 @@ func _ready() -> void:
 	touch.world = world
 	hud_root.add_child(touch)
 	world.ui_hooks = {
-		"map": open_map, "pause": open_pause, "garage": open_garage, "dealership": open_dealership,
+		"map": open_map, "pause": open_pause, "garage": open_garage, "dealership": open_dealership, "refuel": open_refuel, "repair": open_repair,
 		"flash": func() -> void: hud.flash(),
 		"dialog": show_dialog, "mission_result": show_result,
 		"mission_hint": func(d: Dictionary) -> void: Game.notify.emit(String(d.get("desc", "")), "info"),
@@ -181,6 +181,26 @@ func _run_cmd(c: String) -> void:
 		print("HERO ", world.player_car.vid)
 		return
 	match c:
+		"tp_fuel": world.test_teleport("station_fuel", -PI * 0.5)
+		"tp_fuel2": world.test_teleport("station_fuel", PI * 0.5, Vector3(0, 0, -5.8))
+		"tp_repair": world.test_teleport("station_repair", PI * 0.5)
+		"tp_dealer": world.test_teleport("station_dealer", PI, Vector3(0, 0, 3.0))
+		"tp_stationview": world.test_teleport("station_fuel", -PI * 0.5, Vector3(-30, 0, 4))
+		"damage": 
+			world.player_car.damage = 0.6
+			world.player_car.apply_damage_visuals()
+		"fuel_low": world.player_car.fuel = 0.15
+		"refuel_ui": open_refuel()
+		"repair_ui": open_repair()
+		"fill_start": (screen as RefuelUI)._toggle()
+		"fill_stop": (screen as RefuelUI)._stop()
+		"repair_go": (screen as RepairUI)._repair()
+		"close": _close_screen()
+		"buy_try": (screen as DealershipUI)._ask_buy()
+		"buy_go": (screen as DealershipUI)._buy()
+		"dsel": (screen as DealershipUI)._select("kia_ceed")
+		"poor": Game.money = 20
+		"rich": Game.money = 900000
 		"garage": open_garage()
 		"dealer": open_dealership()
 		"map": open_map()
@@ -337,6 +357,22 @@ func open_dealership() -> void:
 		_close_all()
 		world.apply_custom_to_car())
 	_set_screen(d, "dealership")
+
+func open_refuel() -> void:
+	if screen != null or world.player_car == null:
+		return
+	var d := RefuelUI.new()
+	d.world = world
+	d.closed.connect(_close_all)
+	_set_screen(d, "refuel")
+
+func open_repair() -> void:
+	if screen != null or world.player_car == null:
+		return
+	var d := RepairUI.new()
+	d.world = world
+	d.closed.connect(_close_all)
+	_set_screen(d, "repair")
 
 func show_dialog(char_id: String, lines: Array, on_done: Callable) -> void:
 	var d: Control = Menus.dialog(char_id, lines, func() -> void:

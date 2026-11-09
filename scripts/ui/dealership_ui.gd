@@ -11,6 +11,8 @@ var list_box: VBoxContainer
 var info_box: VBoxContainer
 var money_lbl: Label
 var colour: int = -1
+var confirming: bool = false
+var msg: String = ""
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -90,6 +92,7 @@ func _refresh() -> void:
 		h.add_child(UIKit.bar(float(r[k[0]]), UIKit.RED, 190.0))
 		info_box.add_child(h)
 	info_box.add_child(UIKit.label("%d %s   |   %d kg   |   %s" % [int(Game.speed_to_display(float(spec2["top"]))), Game.unit_label(), int(spec2["mass"]), "Off-road capable" if bool(spec2.get("offroad", false)) else "Road tyres"], 16, UIKit.MUTED))
+	info_box.add_child(UIKit.label("Fuel tank  %d L   |   %s" % [int(Data.tank_litres(sel)), "OWNED" if Game.owned.has(sel) else "AVAILABLE"], 16, UIKit.GREEN if Game.owned.has(sel) else UIKit.MUTED))
 	info_box.add_child(UIKit.spacer(4))
 	info_box.add_child(UIKit.label("Preview colour", 16, UIKit.MUTED))
 	var cr := HBoxContainer.new()
@@ -112,27 +115,54 @@ func _refresh() -> void:
 	else:
 		var price: int = int(spec2["price"])
 		var req2: int = Game.rep_required(sel)
-		var b3: Button = UIKit.accent_button("Buy  " + Game.fmt_money(price), _buy, 58)
-		if Game.rep < req2:
-			b3.text = "Locked - needs %d REP" % req2
-			b3.disabled = true
-		elif Game.money < price:
-			b3.disabled = true
-		elif Game.owned.size() >= Game.garage_slots:
-			b3.text = "Garage full (%d/%d)" % [Game.owned.size(), Game.garage_slots]
-			b3.disabled = true
-		info_box.add_child(b3)
+		if confirming:
+			info_box.add_child(UIKit.label("Buy %s for %s?" % [spec2["name"], Game.fmt_money(price)], 20, UIKit.GREEN))
+			info_box.add_child(UIKit.accent_button("Confirm purchase", _buy, 58))
+			info_box.add_child(UIKit.button("Cancel", func() -> void:
+				confirming = false
+				_refresh(), 50))
+		else:
+			var b3: Button = UIKit.accent_button("Buy  " + Game.fmt_money(price), _ask_buy, 58)
+			if Game.rep < req2:
+				b3.text = "Locked - needs %d REP" % req2
+				b3.disabled = true
+			elif Game.owned.size() >= Game.garage_slots:
+				b3.text = "Garage full (%d/%d)" % [Game.owned.size(), Game.garage_slots]
+				b3.disabled = true
+			info_box.add_child(b3)
+	if msg != "":
+		info_box.add_child(UIKit.label(msg, 16, Color(1.0, 0.6, 0.25)))
 	info_box.add_child(UIKit.label("Stock paint is applied; customise in the garage.", 14, UIKit.MUTED))
 
 func _select(id: String) -> void:
 	sel = id
+	confirming = false
+	msg = ""
 	colour = -1
 	world.audio.play_ui("click")
 	_refresh()
 
+func _ask_buy() -> void:
+	var price: int = int(Data.vehicle(sel)["price"])
+	if Game.owned.has(sel):
+		return
+	if Game.money < price:
+		msg = "Not enough money - you need %s more." % Game.fmt_money(price - Game.money)
+		world.audio.play_ui("click")
+	else:
+		msg = ""
+		confirming = true
+	_refresh()
+
 func _buy() -> void:
+	confirming = false
+	if Game.owned.has(sel):
+		return
 	if Game.buy_vehicle(sel):
+		msg = "Purchased! Find it in your garage."
 		if colour >= 0:
 			Game.owned[sel]["custom"]["paint"] = colour
 		world.audio.play_ui("win")
-		_refresh()
+	else:
+		msg = "Purchase failed."
+	_refresh()

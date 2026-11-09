@@ -163,8 +163,10 @@ func _draw() -> void:
 				_icon(s, UIKit.RED, "G")
 			"dealership":
 				_icon(s, Color(0.3, 0.6, 1.0), "D")
-			"gas":
+			"gas", "fuel":
 				_icon(s, UIKit.GOLD, "F")
+			"repair":
+				_icon(s, Color(1.0, 0.5, 0.1), "R")
 			"discover":
 				if Game.discovered.has(poi["id"]) and zoom > 0.16:
 					draw_string(font, s + Vector2(8, 4), String(poi["label"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(0.85, 0.85, 0.9, 0.8))

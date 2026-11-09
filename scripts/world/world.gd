@@ -161,6 +161,8 @@ func _build_pois() -> void:
 		if not s2.is_empty():
 			var sp2: Vector3 = s2["pos"]
 			_sign_label("MARCUS MOTORS", Vector3(sp2.x, sp2.y + 9.0, sp2.z + float(s2["size"].z) * 0.5 + 0.3), 0.0, Color(0.3, 0.65, 1.0))
+	if L.has("station"):
+		_build_station(L["station"])
 	for k in L:
 		if String(k).begins_with("gas_"):
 			pois.append({"id": k, "type": "gas", "pos": L[k], "radius": 14.0, "label": "Gas Station"})
@@ -169,6 +171,23 @@ func _build_pois() -> void:
 		if L.has(k):
 			pois.append({"id": k, "type": "discover", "pos": L[k], "radius": 55.0 if k != "city_center" else 90.0, "label": String(k).capitalize().replace("_", " ")})
 	_place_collectibles()
+
+var station: GasStation = null
+var district: PackDistrict = null
+
+func _build_station(c: Vector3) -> void:
+	station = GasStation.new()
+	station.name = "GasStation"
+	add_child(station)
+	station.build(c)
+	for z in GasStation.zone_defs(c):
+		pois.append(z)
+		var col: Color = Color(1.0, 0.8, 0.1) if z["type"] == "fuel" else (Color(1.0, 0.5, 0.1) if z["type"] == "repair" else Color(0.2, 0.55, 1.0))
+		make_beacon(z["pos"], col, 18.0, 0.9)
+	district = PackDistrict.new()
+	district.name = "PackDistrict"
+	add_child(district)
+	district.build(gen)
 
 func _structure(t: String) -> Dictionary:
 	for s in gen.structures:
@@ -581,8 +600,20 @@ func _handle_input(dt: float) -> void:
 		do_interact()
 	if env.is_night() != was_night:
 		was_night = env.is_night()
+		if station:
+			station.set_night(was_night)
 		if player_car and bool(Game.settings.get("headlights_auto", true)):
 			player_car.set_headlights(was_night)
+
+## test helper: put the player's car on a POI (id), heading yaw, with an optional local offset
+func test_teleport(poi_id: String, yaw: float, off: Vector3 = Vector3.ZERO) -> void:
+	for poi in pois:
+		if poi["id"] == poi_id and player_car:
+			var p: Vector3 = poi["pos"] + off
+			player_car.place_on_ground(Vector3(p.x, p.y + 1.0, p.z), yaw)
+			player_car.linear_velocity = Vector3.ZERO
+			player_car.angular_velocity = Vector3.ZERO
+			return
 
 func _open(screen: String) -> void:
 	if ui_hooks.has(screen):
@@ -751,6 +782,22 @@ func _poi_prompt(poi: Dictionary) -> Array:
 			return ["[%s] Open Garage" % key, _open.bind("garage")]
 		"dealership":
 			return ["[%s] Visit Dealership" % key, _open.bind("dealership")]
+		"fuel":
+			if mode != "drive" or player_car == null:
+				return ["Bring a vehicle to the pumps to refuel", Callable()]
+			if player_car.abs_speed > 1.0:
+				return ["Stop the vehicle to refuel", Callable()]
+			if player_car.fuel >= 0.995:
+				return ["Tank is full", Callable()]
+			return ["[%s] Refuel" % key, _open.bind("refuel")]
+		"repair":
+			if mode != "drive" or player_car == null:
+				return ["Bring a vehicle into the repair bay", Callable()]
+			if player_car.abs_speed > 1.0:
+				return ["Stop the vehicle to repair", Callable()]
+			if player_car.damage < 0.01:
+				return ["Vehicle is in perfect condition", Callable()]
+			return ["[%s] Repair  (%s)" % [key, Game.fmt_money(repair_fee())], _open.bind("repair")]
 		"gas":
 			var cost: int = refuel_cost()
 			if cost <= 0:
@@ -761,6 +808,14 @@ func _poi_prompt(poi: Dictionary) -> Array:
 func do_interact() -> void:
 	if prompt_action.is_valid():
 		prompt_action.call()
+
+const FUEL_PRICE := 1.8   # $ per litre
+
+func repair_fee() -> int:
+	if player_car == null:
+		return 0
+	var d: float = clampf(player_car.damage, 0.0, 1.5)
+	return int(ceil(d * 900.0 / 10.0)) * 10
 
 func refuel_cost() -> int:
 	if player_car == null:

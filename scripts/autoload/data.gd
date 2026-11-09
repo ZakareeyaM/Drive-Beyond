@@ -123,6 +123,25 @@ var VEHICLES: Array = [
 	 "wb": 2.85, "track": 1.58, "paint": 2, "offroad": false, "ai": 12.0},
 ]
 
+func _init() -> void:
+	# cars split from the traffic pack (see PackVehicles / tools/gen_pack_vehicles.py)
+	for e in PackVehicles.LIST:
+		VEHICLES.append((e["spec"] as Dictionary).duplicate(true))
+
+## Fuel tank size in litres (spec "tank", else by category).
+func tank_litres(id: String) -> float:
+	var v: Dictionary = vehicle(id)
+	if v.has("tank"):
+		return float(v["tank"])
+	match String(v["cat"]):
+		"Hatchback": return 42.0
+		"Sedan": return 55.0
+		"Sports Car", "Muscle Car": return 62.0
+		"SUV", "Off-Road": return 85.0
+		"Pickup Truck": return 90.0
+		"Supercar", "Hypercar": return 70.0
+	return 50.0
+
 func vehicle(id: String) -> Dictionary:
 	for v in VEHICLES:
 		if v["id"] == id:

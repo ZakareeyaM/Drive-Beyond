@@ -324,8 +324,8 @@ func _draw_minimap(vs: Vector2) -> void:
 			if (m["beacon"] as Node3D).visible:
 				_mm_icon(m["pos"], TYPE_COL(m["def"]["type"]), pp, f, sc, rot, rad, 5.0)
 	for poi in world.pois:
-		if poi["type"] in ["garage", "dealership", "gas"]:
-			var col: Color = Color(1, 0.2, 0.2) if poi["type"] == "garage" else (Color(0.3, 0.6, 1.0) if poi["type"] == "dealership" else UIKit.GOLD)
+		if poi["type"] in ["garage", "dealership", "gas", "fuel", "repair"]:
+			var col: Color = Color(1, 0.2, 0.2) if poi["type"] == "garage" else (Color(0.3, 0.6, 1.0) if poi["type"] == "dealership" else (Color(1.0, 0.5, 0.1) if poi["type"] == "repair" else UIKit.GOLD))
 			_mm_icon(poi["pos"], col, pp, f, sc, rot, rad, 4.0)
 	if world.has_waypoint:
 		_mm_icon(world.waypoint, Color(1, 1, 1), pp, f, sc, rot, rad, 6.0)

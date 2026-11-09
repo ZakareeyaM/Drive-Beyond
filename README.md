@@ -71,3 +71,10 @@ Missions are plain JSON — add your own entries to `data/missions/missions.json
 - Wheels are parented to the existing `VehicleWheel3D` nodes, so the original controller steers/spins them. Collision uses simple boxes (body, front/rear bumper, cabin).
 - Add another car: put the .glb in `assets/vehicles/`, add a registry entry + a `Data.VEHICLES` entry with the same id.
 - Tests: `tests/glb_check.tscn` (bake/wheel/dimension check), `tests/glb_view.tscn`, `tests/crash_test.tscn -- bmw_m6`; in-game `--cmd=wheel_report`.
+
+## World Expansion (traffic-pack cars, petrol station, buildings)
+- 13 cars from `traffic_rider_npc_vehicles.glb` -> `assets/vehicles/pack/` (config: `tools/gen_pack_vehicles.py` -> `scripts/vehicles/pack_vehicles.gd`; each has its own price, handling, tank litres). Originals kept in `assets/vehicles/traffic_pack/`.
+- Petrol station at city block (3,4): `scripts/world/gas_station.gd`, model `assets/locations/gas_station_opt.glb` (optimised by `tools/optimize_gas_station.py`; original kept). Zones: fuel pumps (`RefuelUI`), repair bay (`RepairUI`), dealership entrance (existing DealershipUI, now with fuel capacity, owned/available, confirm step, insufficient-funds message).
+- Buildings from both packs: `tools/extract_buildings.py` -> `assets/buildings/pack/`, placed by `scripts/world/pack_district.gd` (no shadows, distance culled, box colliders).
+- Prices: `FUEL_PRICE` / `repair_fee()` in `world.gd`; vehicle prices/specs in `tools/gen_pack_vehicles.py`.
+- Build the APK with the existing GitHub Actions workflow (no local Android SDK).
