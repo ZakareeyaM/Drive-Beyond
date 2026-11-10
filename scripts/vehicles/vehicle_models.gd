@@ -52,7 +52,44 @@ const REGISTRY := {
 static var _pack_cache: Dictionary = {}
 
 static func has(vid: String) -> bool:
-	return REGISTRY.has(vid) or is_pack(vid)
+	return REGISTRY.has(vid) or is_pack(vid) or is_fleet(vid)
+
+static var _fleet_cache: Dictionary = {}
+
+static func is_fleet(vid: String) -> bool:
+	return _fleet(vid).size() > 0
+
+static func _fleet(vid: String) -> Dictionary:
+	if _fleet_cache.is_empty():
+		for e in FleetVehicles.LIST:
+			_fleet_cache[e["spec"]["id"]] = e
+		_fleet_cache["_"] = {}
+	return _fleet_cache.get(vid, {})
+
+## Config of a collection car (assets/vehicles/fleet/<id>.glb: Body + Wheel_0..3, metres, origin on the ground between
+## the axles, nose = -Z).  Collision = 3 boxes derived from the measured model; lamps come from the model's own lamp
+## surfaces (see GlbVehicle._split_lamps); "headlight" = optional per-vehicle overrides for HeadlightConfig.
+static func _fleet_cfg(vid: String) -> Dictionary:
+	var e: Dictionary = _fleet(vid)
+	var m: Dictionary = e["model"]
+	var sp: Dictionary = e["spec"]
+	var H: float = float(m["height"])
+	var zmin: float = float(m["zmin"])
+	var zmax: float = float(m["zmax"])
+	var L: float = zmax - zmin
+	var W: float = float(sp["W"])
+	var lo_h: float = H * 0.55
+	var pc: Array = m["paint_rgb"]
+	return {
+		"fleet": true, "glb": "res://assets/vehicles/fleet/%s.glb" % vid, "scale": 1.0,
+		"paint_rgb": Color(pc[0], pc[1], pc[2]),
+		"headlight": e.get("headlight", {}),
+		"collision_pack": [
+			{"pos": Vector3(0, 0.2 + (lo_h - 0.2) * 0.5, (zmin + zmax) * 0.5), "size": Vector3(W * 0.94, lo_h - 0.2, L * 0.97)},
+			{"pos": Vector3(0, lo_h + (H * 0.95 - lo_h) * 0.5, zmin + L * 0.55), "size": Vector3(W * 0.7, H * 0.95 - lo_h, L * 0.42)},
+		],
+		"cam": {"dist": 1.0, "height": maxf(0.0, H - 1.3) * 0.8},
+	}
 
 static func is_pack(vid: String) -> bool:
 	return _pack(vid).size() > 0
@@ -98,6 +135,10 @@ static func _pack_cfg(vid: String) -> Dictionary:
 static func cfg(vid: String) -> Dictionary:
 	if REGISTRY.has(vid):
 		return REGISTRY[vid]
+	if is_fleet(vid):
+		if not _fleet_cache.has("cfg_" + vid):
+			_fleet_cache["cfg_" + vid] = _fleet_cfg(vid)
+		return _fleet_cache["cfg_" + vid]
 	if is_pack(vid):
 		if not _pack_cache.has("cfg_" + vid):
 			_pack_cache["cfg_" + vid] = _pack_cfg(vid)

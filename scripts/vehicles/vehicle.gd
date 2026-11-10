@@ -25,6 +25,10 @@ var upg: Dictionary = {}
 var model: Dictionary = {}
 var wheels: Array = []
 var wheel_visuals: Array = []
+var _high: Array = []
+var _fill: OmniLight3D = null
+var high_beam_on: bool = false
+var headlight_cfg: Dictionary = {}
 var is_player: bool = false
 var is_police: bool = false
 var is_traffic: bool = false
@@ -192,21 +196,7 @@ func _build_wheels() -> void:
 			wheel_visuals.append(vis)
 
 func _build_lights_and_fx() -> void:
-	_spot.clear()
-	var hp: Array = model["head_pos"]
-	for p in hp:
-		var sp := SpotLight3D.new()
-		sp.position = (p as Vector3) + Vector3(0, 0.07, -0.05)
-		sp.rotation_degrees = Vector3(-4, 0, 0)
-		sp.spot_range = 55.0
-		sp.spot_angle = 34.0
-		sp.spot_attenuation = 0.8
-		sp.light_energy = 2.4
-		sp.light_color = model["head_color"]
-		sp.shadow_enabled = false
-		sp.visible = false
-		add_child(sp)
-		_spot.append(sp)
+	_build_headlights()
 	_smoke = CPUParticles3D.new()
 	_smoke.position = Vector3(0, float(spec["hood"]) + 0.05, -float(spec["L"]) * 0.3)
 	_smoke.amount = 24
@@ -259,10 +249,77 @@ func _build_lights_and_fx() -> void:
 		add_child(ts)
 		_tire_smoke.append(ts)
 
+## Realistic low beam: two wide spot lights placed at the model's real lamp positions, aimed slightly down and splayed
+## outward (wide, strongest on the road, gradual fall-off), a small near-fill omni on the road in front of the bumper,
+## and an optional narrower high beam.  No shadows, 2 spots + 1 fill (+2 high-beam spots only while enabled).
+## All numbers come from HeadlightConfig (shared defaults + per-vehicle "headlight" overrides).
+func _build_headlights() -> void:
+	_spot.clear()
+	_high.clear()
+	_fill = null
+	var hc: Dictionary = HeadlightConfig.for_vehicle(vid)
+	headlight_cfg = hc
+	var pos: Array = HeadlightConfig.positions(model)
+	var hi: Dictionary = hc["high"]
+	for i in range(pos.size()):
+		var side: float = -1.0 if i == 0 else 1.0
+		var p: Vector3 = (pos[i] as Vector3) + Vector3(0, float(hc["y_off"]), float(hc["z_off"])) + Vector3(0, MODEL_Y, 0)
+		var sp := SpotLight3D.new()
+		sp.position = p
+		sp.rotation_degrees = Vector3(float(hc["pitch"]), -side * float(hc["splay"]), 0)
+		sp.spot_range = float(hc["range"])
+		sp.spot_angle = float(hc["angle"])
+		sp.spot_attenuation = float(hc["atten"])
+		sp.spot_angle_attenuation = float(hc["angle_atten"])
+		sp.light_energy = float(hc["energy"])
+		sp.light_color = model["head_color"]
+		sp.shadow_enabled = false
+		sp.visible = false
+		add_child(sp)
+		_spot.append(sp)
+		var hs := SpotLight3D.new()
+		hs.position = p
+		hs.rotation_degrees = Vector3(float(hi["pitch"]), -side * 1.5, 0)
+		hs.spot_range = float(hi["range"])
+		hs.spot_angle = float(hi["angle"])
+		hs.spot_attenuation = 1.0
+		hs.spot_angle_attenuation = 1.4
+		hs.light_energy = float(hi["energy"])
+		hs.light_color = model["head_color"]
+		hs.shadow_enabled = false
+		hs.visible = false
+		add_child(hs)
+		_high.append(hs)
+	var fc: Dictionary = hc["fill"]
+	if pos.size() >= 2 and float(fc["energy"]) > 0.0:
+		var zfront: float = minf((pos[0] as Vector3).z, (pos[1] as Vector3).z)
+		_fill = OmniLight3D.new()
+		_fill.position = Vector3(0, float(fc["height"]) + MODEL_Y, zfront - float(fc["ahead"]))
+		_fill.omni_range = float(fc["range"])
+		_fill.omni_attenuation = 1.3
+		_fill.light_energy = float(fc["energy"])
+		_fill.light_color = model["head_color"]
+		_fill.shadow_enabled = false
+		_fill.visible = false
+		add_child(_fill)
+
+func set_high_beam(on: bool) -> void:
+	high_beam_on = on
+	_refresh_beams()
+
+func _refresh_beams() -> void:
+	var ok: bool = headlights_on and not (damage > 0.7) and not lamps_broken
+	for i in range(_spot.size()):
+		var alive: bool = ok and not (i == 0 and damage > 0.35)
+		(_spot[i] as SpotLight3D).visible = alive
+		if i < _high.size():
+			(_high[i] as SpotLight3D).visible = alive and high_beam_on and is_player
+	if _fill:
+		_fill.visible = ok and is_player
+
 func set_headlights(on: bool) -> void:
 	headlights_on = on
-	for s in _spot:
-		(s as SpotLight3D).visible = on and not (damage > 0.7) and not lamps_broken
+	_refresh_beams()
 	var hm: StandardMaterial3D = model.get("head_mat")
 	if hm and not lamps_broken:
 		hm.emission_energy_multiplier = 3.0 if on else 0.35
@@ -493,7 +550,7 @@ func _physics_process(dt: float) -> void:
 	_smoke.amount = 24 if damage < 0.85 else 40
 	var tmat: StandardMaterial3D = model.get("tail_mat")
 	if tmat:
-		tmat.emission_energy_multiplier = 3.5 if (braking_now or in_handbrake) else (1.4 if headlights_on else 0.4)
+		tmat.emission_energy_multiplier = 3.5 if (braking_now or in_handbrake) else (2.2 if headlights_on else 0.5)
 	# unflip if stuck on roof for a while (player can also press R)
 	if up.y < 0.25 and abs_speed < 2.5:
 		respawn_hold += dt
@@ -517,8 +574,7 @@ func _on_impact(imp: float, dv: Vector3) -> void:
 		if hm0:
 			hm0.emission_energy_multiplier = 0.0
 			hm0.albedo_color = Color(0.1, 0.1, 0.1)
-		for sp in _spot:
-			(sp as SpotLight3D).visible = false
+		_refresh_beams()
 	# dent at impact point
 	var local_dir: Vector3 = global_transform.basis.inverse() * (-dv).normalized()
 	var L: float = float(spec["L"])
@@ -547,8 +603,7 @@ func apply_damage_visuals() -> void:
 		else:
 			var ti: int = clampi(int(custom.get("tint", 1)), 0, 3)
 			glass.albedo_color = Color(0.04, 0.06, 0.09, (model.get("glass_alpha", [0.35, 0.55, 0.78, 0.94]) as Array)[ti])
-	if damage > 0.35 and _spot.size() > 0:
-		(_spot[0] as SpotLight3D).visible = false
+	_refresh_beams()
 	if damage > 0.7:
 		var hm: StandardMaterial3D = model.get("head_mat")
 		if hm:

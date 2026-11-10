@@ -127,6 +127,9 @@ func _init() -> void:
 	# cars split from the traffic pack (see PackVehicles / tools/gen_pack_vehicles.py)
 	for e in PackVehicles.LIST:
 		VEHICLES.append((e["spec"] as Dictionary).duplicate(true))
+	# the collection cars (assets/vehicles/fleet, see FleetVehicles)
+	for e in FleetVehicles.LIST:
+		VEHICLES.append((e["spec"] as Dictionary).duplicate(true))
 
 ## Fuel tank size in litres (spec "tank", else by category).
 func tank_litres(id: String) -> float:
@@ -148,12 +151,16 @@ func vehicle(id: String) -> Dictionary:
 			return v
 	return VEHICLES[0]
 
+## The player-facing collection (dealership / garage / saves): the BMW M6 starter + the 7 fleet cars.
+## Every other entry of VEHICLES (the old procedural cars, the traffic pack, the police cruiser) is kept only for
+## traffic / police / AI use and is never offered to the player.
+const COLLECTION := ["bmw_m6", "countach", "m3_gtr", "sesto", "nsx", "gclass", "mustang", "amg_one"]
+
 func vehicle_ids() -> Array:
-	var a: Array = []
-	for v in VEHICLES:
-		if not bool(v.get("hidden", false)):
-			a.append(v["id"])
-	return a
+	return COLLECTION.duplicate()
+
+func in_collection(id: String) -> bool:
+	return COLLECTION.has(id)
 
 func upgrade_cost(vid: String, part: String, next_level: int) -> int:
 	var v: Dictionary = vehicle(vid)

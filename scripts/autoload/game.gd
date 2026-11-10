@@ -21,6 +21,7 @@ const START_VEHICLE := "bmw_m6"
 
 var money: int = START_MONEY
 var rep: int = 0
+var retired_refund: int = 0           # money refunded for cars of the retired collection (shown once after loading)
 var owned: Dictionary = {}              # vid -> {upg:{}, custom:{}, damage:float, fuel:float}
 var selected: String = START_VEHICLE
 var missions_done: Dictionary = {}      # id -> {count:int, best:float}
@@ -480,11 +481,20 @@ func load_game() -> bool:
 				rec["damage"] = float(src.get("damage", 0.0))
 				rec["fuel"] = float(src.get("fuel", 1.0))
 				owned[vid] = rec
+	# cars of the retired collection: refund their sale value (they can no longer be driven or bought)
+	if o is Dictionary:
+		for old_vid in o:
+			if not Data.in_collection(String(old_vid)) and Data.vehicle(String(old_vid))["id"] == String(old_vid):
+				var osrc: Dictionary = o[old_vid]
+				var oupg: Dictionary = Data.default_upgrades()
+				oupg.merge(osrc.get("upg", {}), true)
+				money += Data.sell_value(String(old_vid), oupg)
+				retired_refund += Data.sell_value(String(old_vid), oupg)
 	if owned.is_empty():
 		owned[START_VEHICLE] = new_vehicle_record(START_VEHICLE)
 	selected = String(d.get("selected", START_VEHICLE))
 	if not owned.has(selected):
-		selected = owned.keys()[0]
+		selected = START_VEHICLE if owned.has(START_VEHICLE) else owned.keys()[0]
 	if not owned.has(START_VEHICLE):
 		# older saves: the imported BMW M6 is the new primary car - grant it, and switch only players still on the old starter
 		owned[START_VEHICLE] = new_vehicle_record(START_VEHICLE)

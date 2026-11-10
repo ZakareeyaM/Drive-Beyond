@@ -6,7 +6,7 @@ signal closed
 
 var world: World
 var showroom: Showroom
-var sel: String = "pico_h1"
+var sel: String = "bmw_m6"
 var list_box: VBoxContainer
 var info_box: VBoxContainer
 var money_lbl: Label

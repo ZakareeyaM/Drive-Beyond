@@ -1,6 +1,6 @@
 extends Node
 func _ready() -> void:
-	for vid in ["pico_h1", "strada_s2", "titan_x", "hauler_r", "brawler_69", "vela_gt", "dune_runner", "kestrel_r", "bmw_m6", "kia_ceed"]:
+	for vid in Data.vehicle_ids():
 		var c: Dictionary = Data.default_custom(vid)
 		var t0: int = Time.get_ticks_usec()
 		var m: Dictionary = CarBuilder.build(vid, c)

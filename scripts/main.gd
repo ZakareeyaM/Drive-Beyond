@@ -196,6 +196,21 @@ func _run_cmd(c: String) -> void:
 		await get_tree().create_timer(1.5).timeout
 		get_viewport().get_texture().get_image().save_png("/tmp/gd/ui_b_settings.png")
 		return
+	if c.begins_with("hl_"):   # test: tune the low beam live, e.g. hl_energy=12 hl_pitch=-9 hl_angle=60 hl_fill=2 hl_range=50
+		var kv: PackedStringArray = c.substr(3).split("=")
+		var val: float = float(kv[1])
+		var car: Vehicle = world.player_car
+		for sp in car._spot:
+			match kv[0]:
+				"energy": (sp as SpotLight3D).light_energy = val
+				"angle": (sp as SpotLight3D).spot_angle = val
+				"range": (sp as SpotLight3D).spot_range = val
+				"pitch": (sp as SpotLight3D).rotation_degrees.x = val
+				"atten": (sp as SpotLight3D).spot_attenuation = val
+				"aatten": (sp as SpotLight3D).spot_angle_attenuation = val
+		if kv[0] == "fill" and car._fill:
+			car._fill.light_energy = val
+		return
 	if c.begins_with("shot_"):
 		get_viewport().get_texture().get_image().save_png("/tmp/gd/ui_%s.png" % c.substr(5))
 		return
@@ -250,7 +265,7 @@ func _run_cmd(c: String) -> void:
 		"close": _close_screen()
 		"buy_try": (screen as DealershipUI)._ask_buy()
 		"buy_go": (screen as DealershipUI)._buy()
-		"dsel": (screen as DealershipUI)._select("kia_ceed")
+		"dsel": (screen as DealershipUI)._select("countach")
 		"poor": Game.money = 20
 		"rich": Game.money = 900000
 		"garage": open_garage()
@@ -263,8 +278,20 @@ func _run_cmd(c: String) -> void:
 		"wanted3": world.police.set_heat_level(3)
 		"wanted5": world.police.set_heat_level(5)
 		"storm": world.env.set_weather("storm", true)
+		"lightcount":
+			var cnt: Dictionary = {}
+			for l in get_tree().root.find_children("*", "Light3D", true, false):
+				if (l as Light3D).is_visible_in_tree() and (l as Light3D).light_energy > 0.0:
+					var dd: float = (l as Node3D).global_position.distance_to(world.player_car.global_position)
+					if dd < 80.0:
+						var k: String = "%s %s" % [l.get_class(), str(l.get_parent().name)]
+						cnt[k] = int(cnt.get(k, 0)) + 1
+			print("LIGHTS ", cnt)
 		"rain": world.env.set_weather("heavy_rain", true)
 		"night": world.env.hour = 22.0
+		"lights": world.player_car.set_headlights(true)
+		"lights_off": world.player_car.set_headlights(false)
+		"dry": world.env.set_weather("clear", true)
 		"mission": world.missions.begin(world.missions.defs[0])
 		"race": world.missions._launch(world.missions.def_by_id("s2_first_race"))
 		"drag": world.missions._launch(world.missions.def_by_id("s4_kane_drag"))

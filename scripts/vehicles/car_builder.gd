@@ -423,6 +423,9 @@ static func make_wheel_visual(model: Dictionary, vid: String, custom: Dictionary
 	if model.has("wheel_meshes"):
 		var mi := MeshInstance3D.new()
 		mi.mesh = (model["wheel_meshes"] as Array)[idx]
+		if model.has("wheel_materials"):   # collection cars: tyre / rim colours are baked into vertex colours
+			for s in range(mi.mesh.get_surface_count()):
+				mi.set_surface_override_material(s, GlbVehicle._wheel_material(mi.mesh.surface_get_material(s)))
 		return mi
 	return build_wheel(vid, custom)
 
