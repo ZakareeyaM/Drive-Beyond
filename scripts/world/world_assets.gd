@@ -27,9 +27,11 @@ static func create() -> Dictionary:
 	a["mat_roof"] = a["mat_plain"]
 	a["mesh_struct"] = MeshLib.unit_box()
 	a["mat_struct"] = a["mat_plain"]
-	a["mesh_pine"] = MeshLib.pine_tree()
-	a["mesh_oak"] = MeshLib.oak_tree()
-	a["mesh_palm"] = MeshLib.palm_tree()
+	# every tree uses the one shared stylized palm mesh (assets/world/palm.res); the old procedural trees remain only as fallback
+	var palm: Mesh = load("res://assets/world/palm.res") as Mesh
+	a["mesh_pine"] = palm if palm != null else MeshLib.pine_tree()
+	a["mesh_oak"] = palm if palm != null else MeshLib.oak_tree()
+	a["mesh_palm"] = palm if palm != null else MeshLib.palm_tree()
 	a["mesh_cactus"] = MeshLib.cactus()
 	a["mesh_rock"] = MeshLib.rock()
 	var veg: StandardMaterial3D = plain(0.95, true)

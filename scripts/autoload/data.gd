@@ -154,10 +154,23 @@ func vehicle(id: String) -> Dictionary:
 ## The player-facing collection (dealership / garage / saves): the BMW M6 starter + the 7 fleet cars.
 ## Every other entry of VEHICLES (the old procedural cars, the traffic pack, the police cruiser) is kept only for
 ## traffic / police / AI use and is never offered to the player.
-const COLLECTION := ["bmw_m6", "countach", "m3_gtr", "sesto", "nsx", "gclass", "mustang", "amg_one"]
+const COLLECTION := ["bmw_m6", "countach", "m3_gtr", "sesto", "nsx", "gclass", "mustang", "amg_one", "airport_car"]
+## Vehicles that cost nothing and are NOT sold in the dealership: they are picked up in the world (airport shuttle cart).
+const FREE_VEHICLES := ["airport_car"]
 
 func vehicle_ids() -> Array:
 	return COLLECTION.duplicate()
+
+## What the dealership offers (the collection minus the free world pick-ups)
+func shop_ids() -> Array:
+	var out: Array = []
+	for id in COLLECTION:
+		if not FREE_VEHICLES.has(id):
+			out.append(id)
+	return out
+
+func is_free_vehicle(id: String) -> bool:
+	return FREE_VEHICLES.has(id)
 
 func in_collection(id: String) -> bool:
 	return COLLECTION.has(id)

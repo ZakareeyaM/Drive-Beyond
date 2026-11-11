@@ -153,6 +153,21 @@ func buy_vehicle(vid: String) -> bool:
 	save_game()
 	return true
 
+## Free world pick-up (the airport shuttle cart): no money, REP, mission or garage-slot cost. Returns true when newly added.
+func claim_free_vehicle(vid: String) -> bool:
+	if not Data.is_free_vehicle(vid):
+		return false
+	var added: bool = false
+	if not owned.has(vid):
+		owned[vid] = new_vehicle_record(vid)
+		added = true
+	selected = vid
+	garage_changed.emit()
+	if added:
+		notify.emit("%s added to your garage - free" % Data.vehicle(vid)["name"], "info")
+	save_game()
+	return added
+
 func sell_vehicle(vid: String) -> bool:
 	if not owned.has(vid) or owned.size() <= 1:
 		notify.emit("You must keep at least one car", "warn")

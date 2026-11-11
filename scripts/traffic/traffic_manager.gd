@@ -18,7 +18,6 @@ var clock: float = 0.0
 var enabled: bool = true
 var density: float = 1.0
 var base_cars: int = 16
-var lamps_mm: MultiMeshInstance3D
 var light_state_cache: Dictionary = {}
 var _last_phase: int = -1
 var lit_cars: int = 0
@@ -57,71 +56,80 @@ func light_state(node: int, axis: int) -> int:
 	if t >= 23.0 and t < 25.0: return 1
 	return 2
 
+const SIGNAL_SCALE := 0.9
+const LENS_DARK := Color(0.07, 0.07, 0.07)
+var lens_mms: Array = []           # [red, amber, green] MultiMeshInstance3D (one disc pair per pole, colour = lit / dark)
+var lens_map: Array = []           # per pole: [node id, axis]
+
+## Traffic_signals.glb (prepared by tools/prepare_world.gd): mast pole + arm + horizontal head + vertical head + street lamp.
+## Every corner pole serves ONE axis; its heads face the approaching traffic and its arm reaches over the carriageway.
+## (corner cx,cz) -> yaw: (+,+) 0 and (-,-) PI serve north/south traffic (axis 0); (+,-) PI/2 and (-,+) -PI/2 serve axis 1.
 func _build_light_visuals() -> void:
-	var pole_st := SurfaceTool.new()
-	pole_st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	MeshLib.add_cylinder(pole_st, Vector3.ZERO, 0.1, 0.08, 5.6, 5, Color(0.12, 0.12, 0.14), false)
-	MeshLib.add_box(pole_st, Vector3(0, 5.2, 0), Vector3(0.5, 1.3, 0.5), Color(0.06, 0.06, 0.07))
-	var pole_mesh: ArrayMesh = pole_st.commit()
-	var lamp_mesh := BoxMesh.new()
-	lamp_mesh.size = Vector3(0.34, 0.34, 0.1)
-	var pm := MultiMesh.new()
-	pm.transform_format = MultiMesh.TRANSFORM_3D
-	pm.mesh = pole_mesh
-	var lm := MultiMesh.new()
-	lm.transform_format = MultiMesh.TRANSFORM_3D
-	lm.use_colors = true
-	lm.mesh = lamp_mesh
-	var n_int: int = light_nodes.size()
-	pm.instance_count = n_int * 4
-	lm.instance_count = n_int * 8
-	var pi: int = 0
-	var li: int = 0
-	var pole_body := StaticBody3D.new()   # solid traffic-light poles (layer 1: cars + pedestrians collide)
+	var body_mesh: Mesh = load("res://assets/world/signal_body.res")
+	var n_poles: int = light_nodes.size() * 4
+	var bm := MultiMesh.new()
+	bm.transform_format = MultiMesh.TRANSFORM_3D
+	bm.mesh = body_mesh
+	bm.instance_count = n_poles
+	var lens_multi: Array = []
+	for k in ["r", "y", "g"]:
+		var m := MultiMesh.new()
+		m.transform_format = MultiMesh.TRANSFORM_3D
+		m.use_colors = true
+		m.mesh = load("res://assets/world/signal_lens_%s.res" % k)
+		m.instance_count = n_poles
+		lens_multi.append(m)
+	var pole_body := StaticBody3D.new()   # solid pole bases (layer 1: cars + pedestrians collide)
 	pole_body.collision_layer = 1
 	pole_body.add_to_group("structure")
 	add_child(pole_body)
-	var lamp_nodes_idx: Array = []
+	var pi: int = 0
+	lens_map.clear()
+	var hw: float = 9.5
 	for nid in light_nodes:
 		var p: Vector3 = w.nodes[nid]
-		var hw: float = 9.5
 		for cx in [-1.0, 1.0]:
 			for cz in [-1.0, 1.0]:
-				var pos := Vector3(p.x + cx * hw, p.y + 0.06, p.z + cz * hw)
-				pm.set_instance_transform(pi, Transform3D(Basis.IDENTITY, pos))
+				var yaw: float = 0.0
+				var axis: int = 0
+				if cx > 0.0 and cz > 0.0: yaw = 0.0
+				elif cx < 0.0 and cz < 0.0: yaw = PI
+				elif cx > 0.0: yaw = PI * 0.5; axis = 1
+				else: yaw = -PI * 0.5; axis = 1
+				var pos := Vector3(p.x + cx * hw, p.y + 0.04, p.z + cz * hw)
+				var xf := Transform3D(Basis(Vector3.UP, yaw).scaled(Vector3.ONE * SIGNAL_SCALE), pos)
+				bm.set_instance_transform(pi, xf)
+				for m in lens_multi:
+					(m as MultiMesh).set_instance_transform(pi, xf)
+				lens_map.append([nid, axis])
 				var cs := CollisionShape3D.new()
 				var bs := BoxShape3D.new()
-				bs.size = Vector3(0.3, 5.6, 0.3)
+				bs.size = Vector3(0.45, 8.5, 0.45)
 				cs.shape = bs
-				cs.position = pos + Vector3(0, 2.8, 0)
+				cs.position = pos + Vector3(0, 4.25, 0)
 				pole_body.add_child(cs)
 				pi += 1
-				# lamp facing along z (serves north/south traffic): placed on the side facing the approaching cars
-				lm.set_instance_transform(li, Transform3D(Basis.IDENTITY, pos + Vector3(0, 5.5, -cz * 0.31)))
-				lamp_nodes_idx.append([nid, 0])
-				li += 1
-				lm.set_instance_transform(li, Transform3D(Basis(Vector3.UP, PI * 0.5), pos + Vector3(-cx * 0.31, 5.2, 0)))
-				lamp_nodes_idx.append([nid, 1])
-				li += 1
-	var pmi := MultiMeshInstance3D.new()
-	pmi.multimesh = pm
-	var pmat := StandardMaterial3D.new()
-	pmat.vertex_color_use_as_albedo = true
-	pmat.roughness = 0.6
-	pmi.material_override = pmat
-	pmi.visibility_range_end = 380.0
-	pmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(pmi)
-	lamps_mm = MultiMeshInstance3D.new()
-	lamps_mm.multimesh = lm
+	var bmi := MultiMeshInstance3D.new()
+	bmi.multimesh = bm
+	var bmat := StandardMaterial3D.new()
+	bmat.vertex_color_use_as_albedo = true
+	bmat.roughness = 0.6
+	bmi.material_override = bmat
+	bmi.visibility_range_end = 300.0
+	bmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(bmi)
 	var lmat := StandardMaterial3D.new()
 	lmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	lmat.vertex_color_use_as_albedo = true
-	lamps_mm.material_override = lmat
-	lamps_mm.visibility_range_end = 380.0
-	lamps_mm.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	lamps_mm.set_meta("map", lamp_nodes_idx)
-	add_child(lamps_mm)
+	lens_mms.clear()
+	for m in lens_multi:
+		var mi := MultiMeshInstance3D.new()
+		mi.multimesh = m
+		mi.material_override = lmat
+		mi.visibility_range_end = 300.0
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(mi)
+		lens_mms.append(mi)
 	_update_light_colors(true)
 
 func _update_light_colors(force: bool = false) -> void:
@@ -129,12 +137,12 @@ func _update_light_colors(force: bool = false) -> void:
 	if ph == _last_phase and not force:
 		return
 	_last_phase = ph
-	var map: Array = lamps_mm.get_meta("map")
-	var lm: MultiMesh = lamps_mm.multimesh
-	var cols: Array = [Color(0.1, 1.0, 0.25), Color(1.0, 0.75, 0.05), Color(1.0, 0.08, 0.05)]
-	for i in range(map.size()):
-		var st: int = light_state(map[i][0], map[i][1])
-		lm.set_instance_color(i, cols[st])
+	var lit: Array = [Color(1.0, 0.08, 0.05), Color(1.0, 0.75, 0.05), Color(0.1, 1.0, 0.25)]   # red, amber, green
+	for i in range(lens_map.size()):
+		var st: int = light_state(lens_map[i][0], lens_map[i][1])   # 0 green, 1 amber, 2 red
+		(lens_mms[0].multimesh as MultiMesh).set_instance_color(i, lit[0] if st == 2 else LENS_DARK)
+		(lens_mms[1].multimesh as MultiMesh).set_instance_color(i, lit[1] if st == 1 else LENS_DARK)
+		(lens_mms[2].multimesh as MultiMesh).set_instance_color(i, lit[2] if st == 0 else LENS_DARK)
 
 # ---------------------------------------------------------------- cars
 func _edge_sample(e: Dictionary, s: float) -> Array:

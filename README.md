@@ -95,3 +95,17 @@ Missions are plain JSON — add your own entries to `data/missions/missions.json
 **Headlights (all cars).** `scripts/vehicles/headlight_config.gd` holds one shared default plus a per-vehicle `"headlight"` override dictionary (FleetVehicles / VehicleModels): pitch, splay, angle, range, energy, near-fill, high beam. Lamp positions come from the model's own lamp geometry (`GlbVehicle._split_lamps` measures the left/right lamp centroids), so lights sit in the housings. Low beam = two wide down-pitched, splayed spot lights + a small fill light on the road at the bumper; no shadows; high beam spots exist but are only on after `Vehicle.set_high_beam(true)` (no UI button). Only lamp surfaces glow (emissive), never the bumper. The LGT button toggles both lights; state lives on the vehicle so camera changes don't affect it. Night ambience is untouched.
 
 **Test commands** (`--cmd=`): `hero_<id>` (own + drive a car), `night`, `rain`, `lights`, `lightcount`, `hl_energy=…`/`hl_pitch=…`/`hl_angle=…` (live beam tuning), `cam`, `shot_<name>`.
+
+## World expansion update (airport, districts, NPCs, palms, signals)
+
+**Assets (offline conversion, `tools/prepare_world.gd`, run `godot --headless --path . -s tools/prepare_world.gd -- signal palm biz acc airport people birds dog`; raw GLBs expected under `res://_src/`, not shipped).** Outputs: `assets/world/{signal_*,palm}.res`, `assets/world/bld/` (business + accommodation buildings), `assets/world/airport/` (terminal, hangars, tower, runway kit, planes, props + collision), `assets/world/people/` (pedestrian, bird, dog meshes), `assets/vehicles/fleet/airport_car.glb`.
+
+**Map.** `WorldGen.HALF` 1600 -> 2368 m (37 x 37 chunks). New districts in `scripts/world/expansion.gd` (B business, C accommodation, D airport) joined to the old road graph; `scripts/world/airport.gd` builds the airport (terrain pad via `rect_pads`, runway/taxiway/apron, parking, colliders, static planes). Airport layout numbers are generated into `scripts/world/airport_data.gd`.
+
+**Airport Shuttle Cart.** Free, obtained at the terminal with the normal `[E]` prompt (`World.take_airport_car` -> `Game.claim_free_vehicle`), no money/REP/mission. Listed in `Data.COLLECTION`/`Data.FREE_VEHICLES` (hidden from the dealership shop list via `Data.shop_ids`). Stats in `fleet_vehicles.gd` (regenerate with `tools/gen_fleet_vehicles.py`). BMW M6 is unchanged.
+
+**NPCs.** `scripts/world/ped_manager.gd` (pedestrians on sidewalks/plazas; 8 character variants with a baked 8-pose walk cycle, distance tiers, pooling), `scripts/world/fauna_manager.gd` (dogs: idle -> pick destination -> walk -> pause; birds: circling flight with 6 baked wing poses). Limits are `*_MAX` tables per quality level plus an fps monitor that scales them (`limit_scale`). Test: `--cmd=npcreport`.
+
+**Trees / signals.** All tree visuals use the palm (`world_assets.gd`, shared MultiMesh, collision unchanged). Traffic lights use `Traffic_signals.glb` meshes (`traffic_manager.gd`); red/amber/green logic untouched, lens colours switch per instance.
+
+**Test commands added:** `tpx_<x>_<z>_0`, `aerial_<x>_<y>_<z>_<tx>_<ty>_<tz>`, `sigreport`, `npcreport`, `takecar`.

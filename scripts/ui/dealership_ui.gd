@@ -61,7 +61,7 @@ func _ready() -> void:
 func _refresh() -> void:
 	money_lbl.text = "%s    REP %d" % [Game.fmt_money(Game.money), Game.rep]
 	UIKit.clear(list_box)
-	for id in Data.vehicle_ids():
+	for id in Data.shop_ids():
 		var spec: Dictionary = Data.vehicle(id)
 		var owned: bool = Game.owned.has(id)
 		var req: int = Game.rep_required(id)

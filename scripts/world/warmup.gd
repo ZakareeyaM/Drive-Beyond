@@ -63,7 +63,7 @@ func _jobs() -> Array:
 	# imported building models and the petrol station
 	for id in PackBuildings.SIZES:
 		var bid: String = id
-		jobs.append({"name": "bld_" + bid, "make": func() -> Node3D: return _scene(PackBuildings.PATH % bid), "scale": 0.01})
+		jobs.append({"name": "bld_" + bid, "make": func() -> Node3D: return _scene(PackBuildings.path_of(bid)), "scale": 0.01})
 	jobs.append({"name": "station", "make": func() -> Node3D: return _scene(GasStation.MODEL), "scale": 0.02})
 	# every vehicle model traffic can spawn, plus the player's
 	var vids: Array = []

@@ -18,6 +18,7 @@ var cam: CameraRig
 var police: PoliceManager
 var missions: MissionManager
 var peds: PedManager
+var fauna: FaunaManager
 var audio: AudioManager
 
 var player_car: Vehicle = null
@@ -167,13 +168,42 @@ func _build_pois() -> void:
 		if String(k).begins_with("gas_"):
 			pois.append({"id": k, "type": "gas", "pos": L[k], "radius": 14.0, "label": "Gas Station"})
 			make_beacon(L[k], Color(1.0, 0.8, 0.1), 22.0, 1.0)
-	for k in ["lighthouse", "summit", "port", "marlin_bay", "desert_outpost", "ghost_town", "circuit", "marina", "pinecrest", "beach", "stadium", "rooftop_parking", "tunnel", "eastwood", "industrial", "pine_ridge", "farm", "city_center", "north_pass"]:
+	for k in ["lighthouse", "summit", "port", "marlin_bay", "desert_outpost", "ghost_town", "circuit", "marina", "pinecrest", "beach", "stadium", "rooftop_parking", "tunnel", "eastwood", "industrial", "pine_ridge", "farm", "city_center", "north_pass", "airport", "business_district", "resort_district"]:
 		if L.has(k):
 			pois.append({"id": k, "type": "discover", "pos": L[k], "radius": 55.0 if k != "city_center" else 90.0, "label": String(k).capitalize().replace("_", " ")})
+	_build_airport()
 	_place_collectibles()
 
 var station: GasStation = null
 var district: PackDistrict = null
+var airport: Airport = null
+
+func _build_airport() -> void:
+	var t0: int = Time.get_ticks_msec()
+	airport = Airport.new()
+	add_child(airport)
+	airport.build()
+	airport.set_car_available(not (Game.selected == Airport.CAR_ID))
+	pois.append({"id": "airport_car", "type": "airport_car", "pos": airport.car_spot, "radius": 5.5, "label": "Airport Shuttle Cart"})
+	make_beacon(airport.car_spot, Color(0.3, 0.8, 1.0), 14.0, 0.9)
+	print("AIRPORT %d pieces built in %d ms" % [airport.count, Time.get_ticks_msec() - t0])
+
+## Free pick-up of the airport shuttle cart: adds it to the garage (no cost) and puts the player in it at the airport.
+func take_airport_car() -> void:
+	if airport == null:
+		return
+	if missions and missions.blocks_exit():
+		Game.notify.emit("Finish or abandon the mission first", "warn")
+		return
+	if mode == "drive" and player_car != null and player_car.vid == Airport.CAR_ID:
+		return
+	Game.claim_free_vehicle(Airport.CAR_ID)
+	if player_car != null:
+		player_car.queue_free()
+		player_car = null
+	spawn_player_car(airport.car_spot, airport.car_yaw)
+	enter_drive_mode()
+	airport.set_car_available(false)
 
 func _build_station(c: Vector3) -> void:
 	station = GasStation.new()
@@ -320,6 +350,10 @@ func _begin_session() -> void:
 		peds.name = "Peds"
 		peds.world = self
 		add_child(peds)
+		fauna = FaunaManager.new()
+		fauna.name = "Fauna"
+		fauna.world = self
+		add_child(fauna)
 		missions = MissionManager.new()
 		missions.name = "Missions"
 		missions.world = self
@@ -778,6 +812,8 @@ func _update_prompt() -> void:
 	var t: String = ""
 	var act := Callable()
 	var key: String = Game.key_name("interact")
+	if airport != null:
+		airport.set_car_available(player_car == null or player_car.vid != Airport.CAR_ID)
 	if mode == "foot":
 		if player_car and foot.global_position.distance_to(player_car.global_position) < 4.8:
 			t = "[%s] Enter Vehicle" % key
@@ -806,6 +842,8 @@ func _update_prompt() -> void:
 func _poi_prompt(poi: Dictionary) -> Array:
 	var key: String = Game.key_name("interact")
 	match poi["type"]:
+		"airport_car":
+			return ["[%s] Take the Airport Shuttle Cart  (free)" % key, take_airport_car]
 		"garage":
 			return ["[%s] Open Garage" % key, _open.bind("garage")]
 		"dealership":
@@ -919,6 +957,8 @@ func shutdown_session() -> void:
 		police.reset()
 	if missions:
 		missions.reset()
+	if fauna:
+		fauna.clear()
 	if peds:
 		peds.clear()
 	mode = "menu"

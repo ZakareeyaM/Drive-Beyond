@@ -20,6 +20,7 @@ const CARS := {
 	"nsx": {"src": "nsx.glb", "scale": 100.0, "budget": 28000, "paint": "PaintA", "wheel_budget": 2500},
 	"gclass": {"src": "gclass.glb", "scale": 100.0, "budget": 30000, "paint": "Paint_Material", "wheel_budget": 2500},
 	"mustang": {"src": "mustang.glb", "scale": 100.0, "budget": 28000, "paint": "Paint_Material", "wheel_budget": 2500},
+	"airport_car": {"src": "airport_car.glb", "scale": 1.6, "budget": 12000, "paint": "Material_001", "wheel_budget": 1200},
 	"amg_one": {"src": "amg_one.glb", "scale": 1.0, "budget": 30000, "paint": "amgprojone_paint", "wheel_budget": 2500},
 }
 const WHEEL_RX := "(?i)tire|tyre|wheel|rim|calli|caliper|calier|brake|breaks|disk|disc|hubdecal"

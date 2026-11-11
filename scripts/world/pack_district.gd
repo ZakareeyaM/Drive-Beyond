@@ -17,7 +17,7 @@ func build(gen: WorldGen) -> void:
 
 func _place(id: String, p: Vector3, yaw: float) -> void:
 	if not cache.has(id):
-		cache[id] = load(PackBuildings.PATH % id) as PackedScene
+		cache[id] = load(PackBuildings.path_of(id)) as PackedScene
 	var ps: PackedScene = cache[id]
 	if ps == null:
 		push_error("PackDistrict: missing building " + id)

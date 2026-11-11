@@ -211,6 +211,28 @@ func _run_cmd(c: String) -> void:
 		if kv[0] == "fill" and car._fill:
 			car._fill.light_energy = val
 		return
+	if c.begins_with("tpx_"):   # test: tpx_<x>_<z>_<yaw deg>_<cam height>  -> teleport the car on the ground, e.g. tpx_1880_520_0
+		var tv: PackedStringArray = c.substr(4).split("_")
+		var tx: float = float(tv[0])
+		var tz: float = float(tv[1])
+		var ty: float = world.gen.ground_h(tx, tz)
+		world.player_car.place_on_ground(Vector3(tx, ty + 1.0, tz), deg_to_rad(float(tv[2])))
+		world.player_car.linear_velocity = Vector3.ZERO
+		world.player_car.angular_velocity = Vector3.ZERO
+		world.cam.snap()
+		return
+	if c.begins_with("aerial_"):   # test: aerial_<x>_<y>_<z>_<tx>_<ty>_<tz>  -> free debug camera
+		var av: PackedStringArray = c.substr(7).split("_")
+		var ac := get_node_or_null("DebugCam") as Camera3D
+		if ac == null:
+			ac = Camera3D.new()
+			ac.name = "DebugCam"
+			ac.far = 6000.0
+			add_child(ac)
+		ac.global_position = Vector3(float(av[0]), float(av[1]), float(av[2]))
+		ac.look_at(Vector3(float(av[3]), float(av[4]), float(av[5])), Vector3.UP)
+		ac.current = true
+		return
 	if c.begins_with("shot_"):
 		get_viewport().get_texture().get_image().save_png("/tmp/gd/ui_%s.png" % c.substr(5))
 		return
@@ -332,6 +354,21 @@ func _run_cmd(c: String) -> void:
 		"left": Input.action_press("steer_left", 0.4)
 		"nogas": Input.action_release("accelerate")
 		"interact": world.do_interact()
+		"takecar":
+			world.take_airport_car()
+			print("TAKECAR mode=%s vid=%s pos=%s" % [world.mode, world.player_car.vid if world.player_car else "-", str(world.player_car.global_position) if world.player_car else "-"])
+		"npcreport":
+			print("NPC peds=%d (edge=%d zone=%d pool=%d) dogs=%d birds=%d scale=%.1f/%.1f" % [world.peds.peds.size(), world.peds.peds.filter(func(q): return q["kind"] == "edge").size(), world.peds.peds.filter(func(q): return q["kind"] == "zone").size(), world.peds.pool.size(), world.fauna.dogs.size(), world.fauna.birds.size(), world.peds.limit_scale, world.fauna.limit_scale])
+		"sigreport":
+			var tm: TrafficManager = world.traffic
+			var ln: Array = tm.light_nodes.keys()
+			print("SIGNALS nodes=%d poles=%d first=%s" % [ln.size(), tm.lens_map.size(), str(world.gen.nodes[ln[0]]) if ln.size() > 0 else "-"])
+			var near: Array = []
+			for nid in ln:
+				var q: Vector3 = world.gen.nodes[nid]
+				if absf(q.x) < 200.0 and absf(q.z) < 200.0:
+					near.append(q)
+			print("SIGNEAR ", near)
 		"report": _report()
 		"save": Game.save_game()
 		"econ":

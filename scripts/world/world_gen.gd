@@ -4,11 +4,11 @@ extends RefCounted
 ## Everything here is deterministic and read-only after build(), so chunk
 ## builders can safely run on worker threads.
 
-const HALF := 1600.0
+const HALF := 2368.0                # 37 chunks of 128 m (was 25 chunks / 3.2 km: the east band holds the airport + 2 districts)
 const CELL := 4.0
-const GRID_N := 800
+const GRID_N := 1184
 const CHUNK := 128.0
-const CHUNKS := 25
+const CHUNKS := 37
 const VERTS := 33
 const SEA := 0.0
 const CITY_H := 6.0
@@ -41,6 +41,7 @@ var edges: Array = []              # Dictionary
 var infl := PackedFloat32Array()
 var rh := PackedFloat32Array()
 var pads: Array = []
+var rect_pads: Array = []          # {r: Rect2, h, b}: flat rectangles (airport) blended into the terrain over b metres
 var landmarks: Dictionary = {}
 var keepouts: Array = []           # Rect2 (x,z) areas where no trees/houses may be generated (petrol station, ...)
 var city_light_nodes: Array = []   # intersections that have traffic lights (node ids)
@@ -120,6 +121,13 @@ func nat_h(x: float, z: float) -> float:
 		if dd < rad + float(pd["b"]):
 			var w: float = 1.0 - smoothstep(rad, rad + float(pd["b"]), dd)
 			h = lerpf(h, float(pd["h"]), w)
+	for rp in rect_pads:
+		var rr: Rect2 = rp["r"]
+		var ddx: float = maxf(maxf(rr.position.x - x, x - rr.end.x), 0.0)
+		var ddz: float = maxf(maxf(rr.position.y - z, z - rr.end.y), 0.0)
+		var rd: float = sqrt(ddx * ddx + ddz * ddz)
+		if rd < float(rp["b"]):
+			h = lerpf(h, float(rp["h"]), 1.0 - smoothstep(0.0, float(rp["b"]), rd))
 	return h
 
 func grid_index(ix: int, iz: int) -> int:
@@ -330,6 +338,9 @@ func _build_layout() -> void:
 	var cpts: Array = [Vector2(-120, 1170), Vector2(-20, 1130), Vector2(90, 1150), Vector2(170, 1215), Vector2(180, 1290), Vector2(110, 1345), Vector2(10, 1340), Vector2(-60, 1300), Vector2(-130, 1350), Vector2(-210, 1320), Vector2(-240, 1240)]
 	for q in cpts: circ.append(q)
 	add_road("track", circ, true, true, "Apex Speedway")
+	# --- east expansion: airport, business + accommodation districts ---------------------------------
+	WorldExpansion.add_terrain(self)
+	WorldExpansion.add_roads(self)
 	# --- finalize heights -------------------------------------------------------
 	_finalize_heights()
 
@@ -863,6 +874,7 @@ func build_all() -> void:
 	_rasterize()
 	_index_roads()
 	_build_city()
+	WorldExpansion.build(self)
 
 func edge_other(ei: int, node: int) -> int:
 	var e: Dictionary = edges[ei]
