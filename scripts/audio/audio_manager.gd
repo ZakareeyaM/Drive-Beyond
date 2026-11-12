@@ -24,6 +24,10 @@ var fx_players: Array = []
 var ai_engines: Array = []      # {car, player}
 var sirens: Array = []          # {car, player}
 var pl_engine: AudioStreamPlayer3D
+var rev_player: AudioStreamPlayer3D        # ONE reverse-beep player, owned by the player's current vehicle (never overlaps)
+var rev_stream: AudioStreamMP3
+var rev_hold: float = 0.0
+const REVERSE_BEEP := "res://assets/audio/Reverse_Beeping.mp3"
 var pl_car: Vehicle
 var music_want: String = ""
 var music_cur: String = ""
@@ -408,6 +412,46 @@ func attach_vehicle(v: Vehicle) -> void:
 		if pl_engine and is_instance_valid(pl_engine):
 			pl_engine.queue_free()
 		pl_engine = _engine3d(v, -3.0, 160.0)
+	_attach_reverse(v)
+
+## Reverse warning beeper: a looping 3D player on the player's vehicle (cars and go-karts alike).  The previous one is freed when the
+## vehicle changes, so vehicle switches / exits can never leave a beeper running or stack two.
+func _attach_reverse(v: Vehicle) -> void:
+	if rev_player != null and is_instance_valid(rev_player):
+		rev_player.stop()
+		rev_player.queue_free()
+	rev_player = null
+	rev_hold = 0.0
+	if not ResourceLoader.exists(REVERSE_BEEP):
+		return
+	if rev_stream == null:
+		rev_stream = load(REVERSE_BEEP) as AudioStreamMP3
+		if rev_stream != null:
+			rev_stream.loop = true
+	var p := AudioStreamPlayer3D.new()
+	p.name = "ReverseBeep"
+	p.stream = rev_stream
+	p.bus = "Effects"
+	p.unit_size = 5.0
+	p.max_distance = 70.0
+	p.volume_db = -6.0
+	v.add_child(p)
+	rev_player = p
+
+func _update_reverse(v: Vehicle, delta: float) -> void:
+	if rev_player == null or not is_instance_valid(rev_player):
+		return
+	# actual reverse motion only: signed forward speed < 0 while the player is driving this vehicle
+	var driving: bool = world != null and world.mode == "drive" and world.player_car == v
+	var backing: bool = driving and not v.wrecked and v.engine_on and v.speed < -0.7
+	if backing:
+		rev_hold = 0.0
+		if not rev_player.playing:
+			rev_player.play()
+	elif rev_player.playing:
+		rev_hold += delta
+		if rev_hold > 0.2 or not driving or v.wrecked:     # tiny grace so a speed wobble does not chop the loop
+			rev_player.stop()
 
 func attach_ai_engine(v: Vehicle) -> void:
 	if not ready_flag:
@@ -461,9 +505,12 @@ func _process(delta: float) -> void:
 		rain_player.volume_db = -60.0
 		tyre_player.volume_db = -60.0
 		heli_player.volume_db = -60.0
+		if rev_player != null and is_instance_valid(rev_player) and rev_player.playing:
+			rev_player.stop()
 		return
 	var v: Vehicle = pl_car if is_instance_valid(pl_car) else null
 	if v and is_instance_valid(v):
+		_update_reverse(v, delta)
 		if pl_engine and is_instance_valid(pl_engine):
 			var rn: float = clampf(v.rpm_norm, 0.0, 1.2)
 			var elec: bool = String(v.spec.get("engine", "")) == "electric"

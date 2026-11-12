@@ -196,6 +196,139 @@ func _run_cmd(c: String) -> void:
 		await get_tree().create_timer(1.5).timeout
 		get_viewport().get_texture().get_image().save_png("/tmp/gd/ui_b_settings.png")
 		return
+	if c.begins_with("lapsim_"):   # test: lapsim_<a|b>_<ok|reverse|skip|stand|twice>  - simulates a car passing the gates, prints money before/after
+		var lv: PackedStringArray = c.substr(7).split("_")
+		_lap_sim(lv[0], lv[1])
+		return
+	if c.begins_with("rayprobe_"):   # test: rayprobe_<x>_<z>  prints every collision hit below y+10 at a 2 m grid (5x5)
+		var rv: PackedStringArray = c.substr(9).split("_")
+		var ss: PhysicsDirectSpaceState3D = world.get_world_3d().direct_space_state
+		for ix in range(-2, 3):
+			var line: String = ""
+			for iz in range(-2, 3):
+				var o := Vector3(float(rv[0]) + ix * 2.0, 30.0, float(rv[1]) + iz * 2.0)
+				var excl: Array = []
+				var hs: String = ""
+				for k in range(4):
+					var rq2 := PhysicsRayQueryParameters3D.create(o, o + Vector3(0, -40, 0), 1, excl)
+					var h2: Dictionary = ss.intersect_ray(rq2)
+					if h2.is_empty():
+						break
+					hs += "%.2f(%s) " % [(h2["position"] as Vector3).y, str(h2["collider"].name).left(6)]
+					excl.append(h2["rid"])
+				line += "[" + hs + "] "
+			print("RAYP ", line)
+		return
+	if c.begins_with("dropcar_"):   # test: dropcar_<x>_<z>  lowers the player car from 3 m above the circuit and prints where it settles
+		var dv: PackedStringArray = c.substr(8).split("_")
+		world.player_car.place_on_ground(Vector3(float(dv[0]), 13.5, float(dv[1])), 0.0)
+		for k in range(6):
+			await get_tree().create_timer(0.4).timeout
+			print("DROPCAR t=%.1f y=%.2f vy=%.2f" % [0.4 * (k + 1), world.player_car.global_position.y, world.player_car.linear_velocity.y])
+		return
+	if c.begins_with("indshot_"):   # test: indshot_<l|r>_<name>_<dx>_<dy>_<dz>  indicator on (lit phase), debug camera at car-local offset looking at the car, screenshot
+		var iv: PackedStringArray = c.substr(8).split("_")
+		var ic: Vehicle = world.player_car
+		ic.set_indicator(1 if iv[0] == "l" else 2)
+		var cam3 := get_node_or_null("DebugCam") as Camera3D
+		if cam3 == null:
+			cam3 = Camera3D.new()
+			cam3.name = "DebugCam"
+			cam3.far = 3000.0
+			add_child(cam3)
+		cam3.global_position = ic.global_transform * Vector3(float(iv[2]), float(iv[3]), float(iv[4]))
+		cam3.look_at(ic.global_transform * Vector3(0, 0.5, 0), Vector3.UP)
+		cam3.fov = 40.0
+		cam3.current = true
+		await get_tree().process_frame
+		ic._ind_t = 0.0
+		ic._refresh_indicator()
+		await get_tree().process_frame
+		await get_tree().process_frame
+		get_viewport().get_texture().get_image().save_png("/tmp/gd/ind_%s.png" % iv[1])
+		return
+	if c == "camtest":   # test: drives the car through speed camera 0 twice at 45 m/s and prints the money change
+		var sc0: Vector3 = world.gen.speed_cameras[0]
+		var m0: int = Game.money
+		var cv: Vehicle = world.player_car
+		for pass_i in range(2):
+			cv.place_on_ground(Vector3(sc0.x - 8.0, sc0.y + 0.5, sc0.z), -PI * 0.5)
+			cv.linear_velocity = Vector3(45.0, 0, 0)
+			await get_tree().create_timer(0.35).timeout
+			print("CAMTEST pass %d: money %d -> %d (delta %d) latched=%s" % [pass_i + 1, m0, Game.money, Game.money - m0, str(world.speed_cam_latched.keys())])
+			cv.linear_velocity = Vector3(45.0, 0, 0)
+			await get_tree().create_timer(0.3).timeout
+			print("CAMTEST still inside: delta %d" % (Game.money - m0))
+			cv.place_on_ground(Vector3(sc0.x + 60.0, sc0.y + 0.5, sc0.z), -PI * 0.5)
+			await get_tree().create_timer(0.6).timeout
+		return
+	if c == "revgo":
+		Input.action_press("brake")
+	if c == "revdbg" or c == "revgo":   # test: prints reverse-beep player state (playing?, signed speed, number of beeper nodes in the tree) 16 times
+		for k in range(16):
+			await get_tree().create_timer(0.5).timeout
+			var rv: Vehicle = world.player_car
+			if c == "revgo" and k == 10:
+				Input.action_release("brake")
+				Input.action_press("accelerate")
+			if c == "revgo" and k == 13:
+				Input.action_release("accelerate")
+			print("REV t=%.1f in_brake=%.2f act=%.2f rvsng=%s speed=%.2f playing=%s beepers=%d mode=%s" % [0.5 * (k + 1), rv.in_brake, Input.get_action_strength("brake"), str(rv.reversing), rv.speed, str(world.audio.rev_player != null and world.audio.rev_player.playing), get_tree().root.find_children("ReverseBeep", "AudioStreamPlayer3D", true, false).size(), world.mode])
+		return
+	if c == "kdbg":   # test: print the player car state 20 times, 0.25 s apart
+		for k in range(20):
+			await get_tree().create_timer(0.25).timeout
+			var vv: Vehicle = world.player_car
+			print("KD t=%.2f pos=%s speed=%.2f rot=%s fuel=%.2f" % [0.25 * (k + 1), str(vv.global_position), vv.speed, str(vv.rotation_degrees.snapped(Vector3.ONE * 0.1)), vv.fuel])
+		return
+	if c == "dropball":   # test: sphere + box dropped on track A near the kart spot; prints resting heights
+		for kind in ["sphere", "box"]:
+			var rb := RigidBody3D.new()
+			rb.collision_layer = 2
+			rb.collision_mask = 1 | 2
+			var csn := CollisionShape3D.new()
+			if kind == "sphere":
+				var sh := SphereShape3D.new()
+				sh.radius = 0.3
+				csn.shape = sh
+			else:
+				var bx := BoxShape3D.new()
+				bx.size = Vector3(1.2, 0.3, 1.6)
+				csn.shape = bx
+			rb.add_child(csn)
+			world.add_child(rb)
+			rb.global_position = Vector3(1770.0 if kind == "sphere" else 1790.0, 14.0, 1498.6)
+			await get_tree().create_timer(2.0).timeout
+			print("DROP %s rests at y=%.2f" % [kind, rb.global_position.y])
+		return
+	if c.begins_with("kart_"):     # test: kart_<take|return>_<a|b>
+		var kv2: PackedStringArray = c.substr(5).split("_")
+		var rt: RaceTracks = world.race_tracks
+		if kv2[0] == "take":
+			var ks: Dictionary = rt.kart_spot(kv2[1])
+			var hp: Vector3 = ks["pos"] + Vector3(-4.0, 0.0, 12.0)
+			world.player_car.place_on_ground(Vector3(hp.x, ks["pos"].y + 0.3, hp.z), 0.0)
+			world.player_car.linear_velocity = Vector3.ZERO
+			await get_tree().create_timer(1.0).timeout
+			var home_id: String = world.player_car.vid
+			var hf: float = world.player_car.fuel
+			world.take_kart(kv2[1])
+			for dbg in range(24):
+				await get_tree().create_timer(0.15).timeout
+				var kc: Vehicle = world.player_car
+				var rq := PhysicsRayQueryParameters3D.create(kc.global_position + Vector3(0, 8, 0), kc.global_position + Vector3(0, -8, 0), 1, [kc.get_rid()])
+				var rh: Dictionary = world.get_world_3d().direct_space_state.intersect_ray(rq)
+				print("KDBG pos=%s vel=%s rot=%s speed=%.2f" % [str(kc.global_position), str(kc.linear_velocity), str(kc.rotation_degrees), kc.abs_speed])
+			print("KART take: mode=%s car=%s kart_pos=%s home=%s fuel=%.2f loan=%s" % [world.mode, world.player_car.vid, str(world.player_car.global_position), home_id, hf, str(not world.kart_loan.is_empty())])
+		else:
+			var hm: Vehicle = world.kart_loan["home"]
+			var hdm: float = hm.damage
+			var hfl: float = hm.fuel
+			var hps: Vector3 = hm.global_position
+			world.return_kart()
+			await get_tree().create_timer(0.5).timeout
+			print("KART return: car=%s same=%s pos_moved=%.2f fuel_same=%s dmg_same=%s loan=%s players=%d" % [world.player_car.vid, str(world.player_car == hm), world.player_car.global_position.distance_to(hps), str(is_equal_approx(hfl, world.player_car.fuel)), str(is_equal_approx(hdm, world.player_car.damage)), str(not world.kart_loan.is_empty()), get_tree().get_nodes_in_group("player_vehicle").size()])
+		return
 	if c.begins_with("hl_"):   # test: tune the low beam live, e.g. hl_energy=12 hl_pitch=-9 hl_angle=60 hl_fill=2 hl_range=50
 		var kv: PackedStringArray = c.substr(3).split("=")
 		var val: float = float(kv[1])
@@ -613,3 +746,43 @@ func _avg(a: Array) -> float:
 	for x in a:
 		t += float(x)
 	return t / float(a.size())
+
+
+func _lap_sim(id: String, mode: String) -> void:
+	var rt: RaceTracks = world.race_tracks
+	var n: int = int(rt.tracks[id]["gates"])
+	var m0: int = Game.money
+	var car: Vehicle = world.player_car
+	var order: Array = range(n)
+	var seq: Array = []        # sequence of gate indices passed, forward direction
+	match mode:
+		"ok": seq = order + [0]
+		"twice": seq = order + [0] + range(1, n) + [0]
+		"skip": seq = [0, 1] + range(3, n) + [0]
+		"reverse": seq = [0] + range(1, n) + [0]
+		"stand": seq = [0]
+	rt._have_prev = false
+	var t_orig: float = 0.0
+	# start the run away from the line so the first update only records the position
+	var pos_prev := Vector3.ZERO
+	for gi in seq:
+		var g: Dictionary = rt._gate_world(id, gi)
+		var gp: Vector3 = g["p"]
+		var d: Vector2 = g["d"]
+		var dir := Vector3(d.x, 0.0, d.y)
+		if mode == "reverse":
+			dir = -dir
+		# approach 6 m before, cross to 6 m after in 2 m steps
+		var q0: Vector3 = gp + dir * -6.0
+		q0.y = world.gen.ground_h(q0.x, q0.z) + 0.6
+		rt._prev_pos = q0     # the car drove the stretch between gates (no jump): only the gate crossing itself is simulated
+		rt._have_prev = true
+		for k in range(-2, 4):
+			var q: Vector3 = gp + dir * (float(k) * 2.0)
+			q.y = world.gen.ground_h(q.x, q.z) + 0.6
+			rt.update(0.016, q, true)
+		if mode == "stand":
+			for k in range(40):
+				rt.update(0.016, gp - dir * 0.2, true)
+		rt.tracks[id]["t0"] = float(Time.get_ticks_msec()) / 1000.0 - 100.0 if gi != 0 else rt.tracks[id]["t0"]
+	print("LAPSIM %s %s: laps=%d money %d -> %d (delta %d)" % [id, mode, int(rt.tracks[id]["laps"]), m0, Game.money, Game.money - m0])

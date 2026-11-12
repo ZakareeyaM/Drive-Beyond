@@ -44,6 +44,6 @@ static func create() -> Dictionary:
 	var lamp_mat: StandardMaterial3D = plain(0.5)
 	lamp_mat.metallic = 0.3
 	a["mat_lamp"] = lamp_mat
-	a["mesh_pool"] = MeshLib.glow_quad(15.0)
+	a["mesh_pool"] = MeshLib.glow_quad(22.0)
 	a["mat_pool"] = shader_mat("res://shaders/glow.gdshader")
 	return a

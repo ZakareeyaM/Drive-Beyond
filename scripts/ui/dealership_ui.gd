@@ -126,8 +126,8 @@ func _refresh() -> void:
 			if Game.rep < req2:
 				b3.text = "Locked - needs %d REP" % req2
 				b3.disabled = true
-			elif Game.owned.size() >= Game.garage_slots:
-				b3.text = "Garage full (%d/%d)" % [Game.owned.size(), Game.garage_slots]
+			elif Game.slots_used() >= Game.garage_slots:
+				b3.text = "Garage full (%d/%d)" % [Game.slots_used(), Game.garage_slots]
 				b3.disabled = true
 			info_box.add_child(b3)
 	if msg != "":

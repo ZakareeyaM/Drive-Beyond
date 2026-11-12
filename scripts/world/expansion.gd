@@ -17,6 +17,14 @@ const TILE := 269.29
 const DRIVE_X := 1860.0                 # Terminal Drive (north-south avenue in front of the terminal)
 const PARK_C := Vector3(1790.0, 0.0, 612.0)
 const PARK_S := Vector2(92.0, 150.0)
+# extra petrol stations along the expansion roads: [landmark id, x, z]  (all on the common ground height H, 25+ m off the road centre line)
+const GAS_PLAN := [
+	["gas_airport_road", 1650.0, 525.0],      # Airport Expressway, before the airport
+	["gas_commerce", 1740.0, 700.0],          # Commerce Boulevard, between the airport and the business district
+	["gas_resort", 1865.0, 1032.0],           # Resort Road, accommodation district
+	["gas_speedway_n", 1718.0, 1290.0],       # Speedway Road, north of Riverside Raceway
+	["gas_speedway_s", 1635.0, 1700.0],       # Speedway Road, between the two circuits
+]
 const B_C := Vector2(1700.0, 1000.0)
 const C_C := Vector2(2010.0, 1070.0)
 
@@ -31,6 +39,8 @@ static func add_terrain(g: WorldGen) -> void:
 	# commerce boulevard corridor (so the road is not cut through dunes)
 	g._pad(1700.0, 640.0, 40.0, H, 60.0)
 	g._pad(1700.0, 780.0, 40.0, H, 60.0)
+	for gp in GAS_PLAN:
+		g._pad(float(gp[1]), float(gp[2]), 30.0, H, 30.0)
 
 static func add_roads(g: WorldGen) -> void:
 	g.add_road("highway", [Vector2(1500, 520), Vector2(1600, 505), Vector2(1700, 480), Vector2(1780, 450), Vector2(1860, 430)], true, false, "Airport Expressway")
@@ -77,6 +87,12 @@ static func build(g: WorldGen) -> void:
 	g.keepouts.append(Rect2(1560.0, 860.0, 270.0, 280.0))    # business district
 	g.keepouts.append(Rect2(1890.0, 960.0, 240.0, 220.0))    # accommodation district
 	g.keepouts.append(Rect2(1650.0, 440.0, 100.0, 480.0))    # commerce boulevard corridor
+	for gp in GAS_PLAN:
+		var gx: float = float(gp[1])
+		var gz: float = float(gp[2])
+		g.structures.append({"type": "gas", "pos": Vector3(gx, H, gz), "size": Vector3(36, 6, 24), "facing": 0.0})
+		g.landmarks[String(gp[0])] = Vector3(gx, H, gz)
+		g.keepouts.append(Rect2(gx - 30.0, gz - 24.0, 60.0, 48.0))
 	var term: Vector3 = airport_world(Vector3(-128.0, 0.0, 40.0))
 	g.landmarks["airport"] = Vector3(AX - 150.0, H, AZ + 30.0)
 	g.landmarks["airport_car"] = Vector3(term.x, H, term.z)

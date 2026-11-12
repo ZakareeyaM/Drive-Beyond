@@ -73,7 +73,7 @@ func reset_progress() -> void:
 	money = START_MONEY
 	rep = 0
 	owned = {}
-	owned[START_VEHICLE] = new_vehicle_record(START_VEHICLE)
+	grant_starters()
 	selected = START_VEHICLE
 	missions_done = {}
 	collectibles = []
@@ -134,10 +134,25 @@ func _fmt(n: int) -> String:
 func fmt_money(n: int) -> String:
 	return "$" + _fmt(n)
 
+## The four free starting cars (Data.STARTER_VEHICLES): added when missing (new game, and old saves on load). Never touches
+## money, REP, damage / fuel of cars the player already owns, or the selected car.
+func grant_starters() -> void:
+	for sid in Data.STARTER_VEHICLES:
+		if not owned.has(sid):
+			owned[sid] = new_vehicle_record(sid)
+
+## Garage slots in use: starters and free pick-ups (airport cart) are always kept and never take a slot.
+func slots_used() -> int:
+	var n: int = 0
+	for oid in owned:
+		if not Data.is_free_vehicle(String(oid)):
+			n += 1
+	return n
+
 func buy_vehicle(vid: String) -> bool:
 	if owned.has(vid):
 		return false
-	if owned.size() >= garage_slots:
+	if slots_used() >= garage_slots:
 		notify.emit("Garage full - sell a car or expand the garage", "warn")
 		return false
 	if rep < rep_required(vid):
@@ -169,6 +184,9 @@ func claim_free_vehicle(vid: String) -> bool:
 	return added
 
 func sell_vehicle(vid: String) -> bool:
+	if Data.is_free_vehicle(vid):
+		notify.emit("Free cars cannot be sold", "warn")
+		return false
 	if not owned.has(vid) or owned.size() <= 1:
 		notify.emit("You must keep at least one car", "warn")
 		return false
@@ -330,8 +348,9 @@ const DEFAULT_KEYS := {
 	"interact": KEY_E, "camera": KEY_C, "pause": KEY_ESCAPE, "map": KEY_M, "headlights": KEY_L,
 	"horn": KEY_H, "nitro": KEY_SHIFT, "reset_car": KEY_R, "foot_forward": KEY_W, "foot_back": KEY_S,
 	"foot_left": KEY_A, "foot_right": KEY_D, "sprint": KEY_SHIFT, "jump": KEY_SPACE, "exit_vehicle": KEY_F,
+	"indicator_left": KEY_Z, "indicator_right": KEY_X,
 }
-const REMAPPABLE := ["accelerate", "brake", "steer_left", "steer_right", "handbrake", "interact", "camera", "map", "headlights", "horn", "nitro", "reset_car", "exit_vehicle"]
+const REMAPPABLE := ["accelerate", "brake", "steer_left", "steer_right", "handbrake", "interact", "camera", "map", "headlights", "horn", "nitro", "reset_car", "exit_vehicle", "indicator_left", "indicator_right"]
 
 func _setup_input() -> void:
 	for a in DEFAULT_KEYS:
@@ -353,7 +372,7 @@ func _setup_input() -> void:
 	_add_btn("handbrake", JOY_BUTTON_B); _add_btn("interact", JOY_BUTTON_Y); _add_btn("camera", JOY_BUTTON_RIGHT_STICK)
 	_add_btn("pause", JOY_BUTTON_START); _add_btn("map", JOY_BUTTON_BACK); _add_btn("headlights", JOY_BUTTON_LEFT_SHOULDER)
 	_add_btn("horn", JOY_BUTTON_RIGHT_SHOULDER); _add_btn("nitro", JOY_BUTTON_X); _add_btn("jump", JOY_BUTTON_A)
-	_add_btn("reset_car", JOY_BUTTON_DPAD_DOWN); _add_btn("sprint", JOY_BUTTON_LEFT_STICK)
+	_add_btn("reset_car", JOY_BUTTON_DPAD_DOWN); _add_btn("indicator_left", JOY_BUTTON_DPAD_LEFT); _add_btn("indicator_right", JOY_BUTTON_DPAD_RIGHT); _add_btn("sprint", JOY_BUTTON_LEFT_STICK)
 
 func _add_key(a: String, k: int) -> void:
 	var ev := InputEventKey.new()
@@ -505,8 +524,7 @@ func load_game() -> bool:
 				oupg.merge(osrc.get("upg", {}), true)
 				money += Data.sell_value(String(old_vid), oupg)
 				retired_refund += Data.sell_value(String(old_vid), oupg)
-	if owned.is_empty():
-		owned[START_VEHICLE] = new_vehicle_record(START_VEHICLE)
+	grant_starters()   # old saves (and saves that sold the BMW) always own the four free starting cars
 	selected = String(d.get("selected", START_VEHICLE))
 	if not owned.has(selected):
 		selected = START_VEHICLE if owned.has(START_VEHICLE) else owned.keys()[0]

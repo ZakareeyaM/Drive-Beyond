@@ -133,13 +133,15 @@ func _row_label(text: String, sub: String = "") -> VBoxContainer:
 
 # ------------------------------------------------------------ cars
 func _tab_cars() -> void:
-	content.add_child(UIKit.label("Slots %d / %d" % [Game.owned.size(), Game.garage_slots], 18, UIKit.MUTED))
+	content.add_child(UIKit.label("Paid slots %d / %d  -  starter and free cars are always yours" % [Game.slots_used(), Game.garage_slots], 16, UIKit.MUTED))
 	for id in Game.owned:
 		var spec: Dictionary = Data.vehicle(id)
 		var h := HBoxContainer.new()
-		var b: Button = UIKit.button("%s%s" % [spec["name"], "   [ACTIVE]" if id == Game.selected else ""], _pick_car.bind(id), 52)
+		var tag: String = "ACTIVE" if id == Game.selected else ("FREE" if Data.is_free_vehicle(id) else "OWNED")
+		var b: Button = UIKit.button("%s   [%s]\n%s  |  %s  |  %s" % [spec["name"], tag, spec["cat"], spec["drive"], String(spec["engine"]).to_upper()], _pick_car.bind(id), 64)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.add_theme_font_size_override("font_size", 18)
 		if id == vid:
 			b.add_theme_stylebox_override("normal", UIKit.box(UIKit.RED_DARK, 8, UIKit.RED, 2, 14))
 		h.add_child(b)
@@ -148,8 +150,8 @@ func _tab_cars() -> void:
 	var sel: Button = UIKit.accent_button("Drive this car" if vid != Game.selected else "Currently selected", _select_car, 54)
 	sel.disabled = vid == Game.selected
 	content.add_child(sel)
-	var sell: Button = UIKit.button("Sell for " + Game.fmt_money(Data.sell_value(vid, Game.owned[vid]["upg"])), _sell, 50)
-	sell.disabled = Game.owned.size() <= 1
+	var sell: Button = UIKit.button("Free car - cannot be sold" if Data.is_free_vehicle(vid) else ("Sell for " + Game.fmt_money(Data.sell_value(vid, Game.owned[vid]["upg"]))), _sell, 50)
+	sell.disabled = Game.owned.size() <= 1 or Data.is_free_vehicle(vid)
 	content.add_child(sell)
 	if Game.garage_slots < 12:
 		content.add_child(UIKit.button("Expand garage (+1 slot)  " + Game.fmt_money(Game.expand_cost()), func() -> void: Game.expand_garage(), 50))

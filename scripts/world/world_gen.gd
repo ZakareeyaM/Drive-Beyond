@@ -341,6 +341,8 @@ func _build_layout() -> void:
 	# --- east expansion: airport, business + accommodation districts ---------------------------------
 	WorldExpansion.add_terrain(self)
 	WorldExpansion.add_roads(self)
+	RaceTracks.add_terrain(self)
+	RaceTracks.add_roads(self)
 	# --- finalize heights -------------------------------------------------------
 	_finalize_heights()
 
@@ -875,6 +877,7 @@ func build_all() -> void:
 	_index_roads()
 	_build_city()
 	WorldExpansion.build(self)
+	RaceTracks.register(self)
 
 func edge_other(ei: int, node: int) -> int:
 	var e: Dictionary = edges[ei]

@@ -137,6 +137,7 @@ func _draw() -> void:
 	draw_texture_rect(tex, Rect2(tl, Vector2(sz, sz)), false)
 	draw_rect(Rect2(tl, Vector2(sz, sz)), UIKit.RED, false, 2.0)
 	var gen: WorldGen = world.gen
+	_draw_zones(gen)
 	for e in gen.edges:
 		var pts: PackedVector3Array = e["pts"]
 		var k: String = e["kind"]
@@ -155,10 +156,13 @@ func _draw() -> void:
 		for i in range(0, rt.size(), 2):
 			arr2.append(_w2s(rt[i]))
 		draw_polyline(arr2, Color(1.0, 0.2, 0.3), 4.0, true)
+	_draw_district_labels(gen)
 	# POIs
 	for poi in world.pois:
 		var s: Vector2 = _w2s(poi["pos"])
 		match poi["type"]:
+			"kart":
+				_flag_icon(s)
 			"garage":
 				_icon(s, UIKit.RED, "G")
 			"dealership":
@@ -200,7 +204,101 @@ func _draw() -> void:
 		ar[i] = ps + ar[i].rotated(ang)
 	draw_colored_polygon(ar, Color.WHITE)
 	draw_polyline(PackedVector2Array([ar[0], ar[1], ar[2], ar[3], ar[0]]), UIKit.RED, 2.0)
+	_draw_legend(vs)
+	_draw_compass(vs)
 	info_lbl.text = hover_id if hover_id != "" else "Coordinates  %d, %d" % [int(_s2w(mp).x), int(_s2w(mp).z)]
+
+# ---------------------------------------------------------------- districts, legend, compass
+func _label(p: Vector2, t: String, size: int, col: Color) -> void:
+	draw_string(font, p + Vector2(1.5, 1.5), t, HORIZONTAL_ALIGNMENT_LEFT, -1, size, Color(0, 0, 0, 0.9))
+	draw_string(font, p, t, HORIZONTAL_ALIGNMENT_LEFT, -1, size, col)
+
+func _label_c(p: Vector2, t: String, size: int, col: Color) -> void:
+	var w: float = font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+	_label(p - Vector2(w * 0.5, 0), t, size, col)
+
+## translucent district footprints on top of the terrain texture (world rectangles / circles)
+func _draw_zones(gen: WorldGen) -> void:
+	var zones: Array = [
+		[Rect2(1795.0, 45.0, 440.0, 910.0), Color(0.55, 0.7, 0.9, 0.16)],       # airport
+		[Rect2(1560.0, 860.0, 270.0, 280.0), Color(0.95, 0.75, 0.3, 0.16)],     # business district
+		[Rect2(1890.0, 960.0, 240.0, 220.0), Color(0.75, 0.5, 0.9, 0.16)],      # accommodation district
+	]
+	for id in RaceTracks.ORDER:
+		var c: Vector2 = RaceTracks.DEF[id]["c"]
+		var h: Vector2 = (TracksData.DATA[id]["half"] as Vector2) + Vector2(10, 10)
+		zones.append([Rect2(c.x - h.x, c.y - h.y, h.x * 2.0, h.y * 2.0), Color(0.95, 0.35, 0.3, 0.2)])
+	for z in zones:
+		var r: Rect2 = z[0]
+		draw_rect(Rect2(_w2s(Vector3(r.position.x, 0, r.position.y)), r.size * zoom), z[1])
+	if gen.landmarks.has("city_center"):
+		var cc: Vector3 = gen.landmarks["city_center"]
+		draw_arc(_w2s(cc), 520.0 * zoom, 0.0, TAU, 64, Color(0.7, 0.75, 0.9, 0.35), 2.0, true)
+
+func _draw_district_labels(gen: WorldGen) -> void:
+	var L: Dictionary = gen.landmarks
+	var names: Array = [["city_center", "CITY CENTER"], ["port", "PORT"], ["industrial", "INDUSTRIAL AREA"], ["business_district", "BUSINESS DISTRICT"],
+		["resort_district", "ACCOMMODATION DISTRICT"], ["airport", "AIRPORT"], ["circuit", "RACE CIRCUIT"], ["track_a", "RIVERSIDE RACEWAY"], ["track_b", "GRAND PRIX CIRCUIT"]]
+	for n in names:
+		if not L.has(n[0]):
+			continue
+		var s: Vector2 = _w2s(L[n[0]])
+		var size: int = clampi(int(11.0 + zoom * 30.0), 12, 22)
+		if n[0] == "airport":
+			s += Vector2(0, 26)
+		var tw: float = font.get_string_size(String(n[1]), HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+		match String(n[0]):
+			"business_district":
+				_label(s - Vector2(tw + 14.0, 0), String(n[1]), size, Color(1, 0.9, 0.6, 0.95))      # to the left of its block
+			"resort_district":
+				_label(s + Vector2(14.0, 0), String(n[1]), size, Color(0.9, 0.75, 1.0, 0.95))        # to the right of its block
+			"track_a", "track_b":
+				_label_c(s - Vector2(0, 22), String(n[1]), size, Color(1.0, 0.85, 0.3, 0.97))
+			_:
+				_label_c(s - Vector2(0, 14), String(n[1]), size, Color(1, 1, 1, 0.92))
+
+func _flag_icon(s: Vector2) -> void:
+	draw_rect(Rect2(s - Vector2(10, 10), Vector2(20, 20)), Color(0, 0, 0, 0.9))
+	for iy in range(4):
+		for ix in range(4):
+			draw_rect(Rect2(s + Vector2(-8 + ix * 4, -8 + iy * 4), Vector2(4, 4)), Color.WHITE if (ix + iy) % 2 == 0 else Color(0.1, 0.1, 0.1))
+
+func _plane_icon(s: Vector2) -> void:
+	draw_rect(Rect2(s - Vector2(10, 10), Vector2(20, 20)), Color(0, 0, 0, 0.9))
+	var col := Color(0.55, 0.8, 1.0)
+	draw_line(s + Vector2(0, -8), s + Vector2(0, 8), col, 3.0)
+	draw_line(s + Vector2(-8, 1), s + Vector2(8, 1), col, 3.0)
+	draw_line(s + Vector2(-4, 7), s + Vector2(4, 7), col, 2.0)
+
+func _draw_legend(vs: Vector2) -> void:
+	var items: Array = [["G", UIKit.RED, "Home Garage"], ["D", Color(0.3, 0.6, 1.0), "Dealership"], ["M", Color(1.0, 0.8, 0.2), "Mission"], ["F", UIKit.GOLD, "Fuel Station"], ["A", Color(0.55, 0.8, 1.0), "Airport"], ["C", Color.WHITE, "Race Circuit"]]
+	var x0: float = vs.x - 232.0
+	var y0: float = vs.y - 100.0 - float(items.size()) * 26.0 - 34.0
+	draw_rect(Rect2(x0 - 12, y0 - 10, 224, float(items.size()) * 26.0 + 48.0), Color(0.03, 0.04, 0.07, 0.82))
+	draw_rect(Rect2(x0 - 12, y0 - 10, 224, float(items.size()) * 26.0 + 48.0), UIKit.RED, false, 1.5)
+	_label(Vector2(x0, y0 + 12), "LEGEND", 16, Color(1, 1, 1))
+	for i in range(items.size()):
+		var it: Array = items[i]
+		var c: Vector2 = Vector2(x0 + 11, y0 + 38.0 + float(i) * 26.0)
+		match String(it[0]):
+			"M":
+				draw_circle(c, 9.0, Color(0, 0, 0, 0.85))
+				draw_circle(c, 6.5, it[1])
+			"C":
+				_flag_icon(c)
+			"A":
+				_plane_icon(c)
+			_:
+				_icon(c, it[1], String(it[0]))
+		_label(Vector2(x0 + 30, y0 + 44.0 + float(i) * 26.0), String(it[2]), 16, Color(0.92, 0.92, 0.96))
+
+func _draw_compass(vs: Vector2) -> void:
+	var c: Vector2 = Vector2(vs.x - 52.0, 262.0)
+	draw_circle(c, 30.0, Color(0.03, 0.04, 0.07, 0.82))
+	draw_arc(c, 30.0, 0.0, TAU, 32, UIKit.RED, 2.0, true)
+	draw_colored_polygon(PackedVector2Array([c + Vector2(0, -24), c + Vector2(7, 4), c + Vector2(-7, 4)]), UIKit.RED)
+	draw_colored_polygon(PackedVector2Array([c + Vector2(0, 24), c + Vector2(7, 4), c + Vector2(-7, 4)]), Color(0.7, 0.7, 0.75))
+	_label_c(c + Vector2(0, -33), "N", 16, Color.WHITE)
 
 func _icon(s: Vector2, col: Color, t: String) -> void:
 	draw_rect(Rect2(s - Vector2(9, 9), Vector2(18, 18)), Color(0, 0, 0, 0.85))

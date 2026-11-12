@@ -154,9 +154,14 @@ func vehicle(id: String) -> Dictionary:
 ## The player-facing collection (dealership / garage / saves): the BMW M6 starter + the 7 fleet cars.
 ## Every other entry of VEHICLES (the old procedural cars, the traffic pack, the police cruiser) is kept only for
 ## traffic / police / AI use and is never offered to the player.
-const COLLECTION := ["bmw_m6", "countach", "m3_gtr", "sesto", "nsx", "gclass", "mustang", "amg_one", "airport_car"]
-## Vehicles that cost nothing and are NOT sold in the dealership: they are picked up in the world (airport shuttle cart).
-const FREE_VEHICLES := ["airport_car"]
+const COLLECTION := ["bmw_m6", "civic", "camaro", "c63", "countach", "m3_gtr", "sesto", "nsx", "gclass", "mustang", "amg_one", "airport_car"]
+## The four cars every player owns from the very first launch (free, no mission / unlock): BMW M6 + Civic Type R + Camaro SS + AMG C 63 DTM.
+const STARTER_VEHICLES := ["bmw_m6", "civic", "camaro", "c63"]
+## Vehicles that cost nothing and are NOT sold in the dealership: the three extra starters and the airport shuttle cart
+## (picked up in the world). The BMW M6 is also free but stays listed so the dealership / old saves behave as before.
+const FREE_VEHICLES := ["civic", "camaro", "c63", "airport_car"]
+## Track go-karts: drivable, free, never owned / listed in the garage - borrowed at the race circuits (World.take_kart).
+const KART_ID := "go_kart"
 
 func vehicle_ids() -> Array:
 	return COLLECTION.duplicate()
@@ -170,7 +175,10 @@ func shop_ids() -> Array:
 	return out
 
 func is_free_vehicle(id: String) -> bool:
-	return FREE_VEHICLES.has(id)
+	return FREE_VEHICLES.has(id) or id == "bmw_m6"
+
+func is_starter(id: String) -> bool:
+	return STARTER_VEHICLES.has(id)
 
 func in_collection(id: String) -> bool:
 	return COLLECTION.has(id)

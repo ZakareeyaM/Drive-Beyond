@@ -42,6 +42,9 @@ func _layout() -> void:
 		# pedals
 		{"id": "brake", "a": "brake", "r": Rect2(w - pw * 2.0 - 52.0, h - 190, pw, 170), "t": "BRAKE", "mode": "drive", "shape": "rect"},
 		{"id": "gas", "a": "accelerate", "r": Rect2(w - pw - 28.0, h - 214, pw, 194), "t": "GAS", "mode": "drive", "shape": "rect"},
+		# turn indicators: small buttons just above the two steering pads (clear of the pedals, the minimap and the round button columns)
+		{"id": "ind_l", "a": "indicator_left", "c": Vector2(103.0, h - 214.0), "rad": 26.0, "t": "", "mode": "drive", "shape": "circle"},
+		{"id": "ind_r", "a": "indicator_right", "c": Vector2(271.0, h - 214.0), "rad": 26.0, "t": "", "mode": "drive", "shape": "circle"},
 		# round icon buttons (two columns)
 		{"id": "cal", "a": "", "c": Vector2(cx1, r0), "rad": 32.0, "t": "CAL", "mode": "drive", "shape": "circle", "tilt_only": true},
 		{"id": "tilt", "a": "", "c": Vector2(cx2, r0), "rad": 32.0, "t": "TILT", "mode": "drive", "shape": "circle"},
@@ -87,7 +90,7 @@ func _hit(b: Dictionary, p: Vector2) -> bool:
 func _release_all() -> void:
 	for k in fingers.keys():
 		_release(k)
-	for a in ["steer_left", "steer_right", "accelerate", "brake", "handbrake", "nitro", "foot_left", "foot_right", "foot_forward", "foot_back", "sprint", "jump", "horn"]:
+	for a in ["steer_left", "steer_right", "accelerate", "brake", "handbrake", "nitro", "foot_left", "foot_right", "foot_forward", "foot_back", "sprint", "jump", "horn", "indicator_left", "indicator_right"]:
 		Input.action_release(a)
 	joy_finger = -1
 	joy_vec = Vector2.ZERO
@@ -222,7 +225,7 @@ func _draw() -> void:
 		else:
 			var c: Vector2 = b["c"]
 			var rad: float = float(b["rad"])
-			var on: bool = (id == "tilt" and bool(Game.settings.get("tilt_steer", false))) or (id == "lights" and world.player_car != null and world.player_car.headlights_on)
+			var on: bool = (id == "tilt" and bool(Game.settings.get("tilt_steer", false))) or (id == "lights" and world.player_car != null and world.player_car.headlights_on) or (id == "ind_l" and world.player_car != null and world.player_car.indicator == 1) or (id == "ind_r" and world.player_car != null and world.player_car.indicator == 2)
 			var border: Color = Color(0.9, 0.95, 1.0, 0.9 * a)
 			if id == "interact":
 				border = Color(1, 1, 1, (0.6 + 0.4 * sin(pulse * 6.0)) * a)
@@ -295,6 +298,12 @@ func _draw_tilt_slider(a: float) -> void:
 func _draw_icon(id: String, c: Vector2, s: float, col: Color, a: float) -> void:
 	var w: float = 2.2
 	match id:
+		"ind_l", "ind_r":   # turn arrow
+			var dir: float = -1.0 if id == "ind_l" else 1.0
+			var amber := Color(1.0, 0.7, 0.1, 0.98 * a)
+			var tip: Vector2 = c + Vector2(dir * s * 1.0, s * 0.2)
+			draw_colored_polygon(PackedVector2Array([tip, tip + Vector2(-dir * s * 0.95, -s * 0.8), tip + Vector2(-dir * s * 0.95, s * 0.8)]), amber)
+			draw_line(tip + Vector2(-dir * s * 0.9, 0), tip + Vector2(-dir * s * 1.6, 0), amber, w * 1.6)
 		"cal":   # gear
 			draw_arc(c, s * 0.62, 0.0, TAU, 20, col, w, true)
 			draw_arc(c, s * 0.26, 0.0, TAU, 12, col, w, true)

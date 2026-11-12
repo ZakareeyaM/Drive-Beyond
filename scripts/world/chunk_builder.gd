@@ -201,8 +201,10 @@ static func build(w: WorldGen, cx: int, cz: int) -> Dictionary:
 				lamp_every = 8
 			elif kind == "suburb":
 				lamp_every = 10
-			elif kind == "highway" and rr < 900.0:
-				lamp_every = 10
+			elif kind == "highway":
+				lamp_every = 10 if rr < 900.0 else 14       # the far-out expressways (airport) are lit too, a little sparser
+			elif kind == "country":
+				lamp_every = 18                              # country / access roads (Speedway Road, circuit access): sparse but present
 			elif kind == "industrial":
 				lamp_every = 12
 			if lamp_every > 0 and k % lamp_every == 0 and br[k] == 0:

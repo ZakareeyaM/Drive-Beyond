@@ -1,7 +1,7 @@
 extends SceneTree
 func _initialize():
 	var out = {}
-	for id in ["countach","m3_gtr","sesto","nsx","gclass","mustang","amg_one","airport_car"]:
+	for id in ["countach","m3_gtr","sesto","nsx","gclass","mustang","amg_one","airport_car","civic","camaro","c63","go_kart"]:
 		var inst = (load("res://assets/vehicles/fleet/%s.glb" % id) as PackedScene).instantiate()
 		var bb = (inst.find_child("Body", true, false) as MeshInstance3D).mesh.get_aabb()
 		var w = []

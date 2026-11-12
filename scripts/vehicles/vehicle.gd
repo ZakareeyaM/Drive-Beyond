@@ -197,6 +197,7 @@ func _build_wheels() -> void:
 
 func _build_lights_and_fx() -> void:
 	_build_headlights()
+	_build_indicators()
 	_smoke = CPUParticles3D.new()
 	_smoke.position = Vector3(0, float(spec["hood"]) + 0.05, -float(spec["L"]) * 0.3)
 	_smoke.amount = 24
@@ -302,6 +303,72 @@ func _build_headlights() -> void:
 		_fill.shadow_enabled = false
 		_fill.visible = false
 		add_child(_fill)
+
+# ---------------------------------------------------------------- turn indicators
+## Four small amber lenses (front-left, front-right, rear-left, rear-right) sunk into the body at the real lamp positions of the model, so
+## they are part of the bodywork and never float.  One direction at a time (1 = left, 2 = right, 0 = off); they flash at ~1.5 Hz.
+var indicator: int = 0
+var _ind_lens: Array = []        # [FL, FR, RL, RR]
+var _ind_mat: StandardMaterial3D
+var _ind_t: float = 0.0
+func _build_indicators() -> void:
+	for n in _ind_lens:
+		if is_instance_valid(n):
+			(n as Node).queue_free()
+	_ind_lens.clear()
+	_ind_mat = StandardMaterial3D.new()
+	_ind_mat.albedo_color = Color(1.0, 0.55, 0.05)
+	_ind_mat.emission_enabled = true
+	_ind_mat.emission = Color(1.0, 0.55, 0.05)
+	_ind_mat.emission_energy_multiplier = 4.0
+	_ind_mat.roughness = 0.3
+	var Lh: float = float(spec["L"]) * 0.5
+	var Wh: float = float(spec["W"]) * 0.5
+	var pos: Array = HeadlightConfig.positions(model)
+	var hy: float = (pos[0] as Vector3).y if pos.size() > 0 else 0.62
+	var hx: float = absf((pos[0] as Vector3).x) if pos.size() > 0 else Wh * 0.7
+	var hz: float = (pos[0] as Vector3).z if pos.size() > 0 else -Lh
+	var kart: bool = bool(spec.get("kart", false))
+	# front lenses sit just outboard of / below the headlamp, flush with the nose; rear lenses mirror them on the tail
+	var fx: float = minf(hx + 0.16, Wh - 0.07)
+	var fy: float = hy - 0.075 + MODEL_Y
+	var fz: float = hz + 0.01
+	var rx: float = minf(hx + 0.04, Wh - 0.08)
+	var ry: float = hy + MODEL_Y - 0.02
+	var rz: float = Lh - 0.03
+	if kart:
+		fx = Wh - 0.12
+		fy = 0.30
+		fz = -Lh + 0.06
+		rx = Wh - 0.14
+		ry = 0.30
+		rz = Lh - 0.05
+	var sz := Vector3(0.17, 0.065, 0.06) if not kart else Vector3(0.1, 0.05, 0.04)
+	for pt in [Vector3(-fx, fy, fz), Vector3(fx, fy, fz), Vector3(-rx, ry, rz), Vector3(rx, ry, rz)]:
+		var mi := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = sz
+		mi.mesh = bm
+		mi.material_override = _ind_mat
+		mi.position = pt
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.visible = false
+		add_child(mi)
+		_ind_lens.append(mi)
+
+func set_indicator(dir: int) -> void:
+	indicator = dir
+	_ind_t = 0.0
+	_refresh_indicator()
+
+func toggle_indicator(dir: int) -> void:
+	set_indicator(0 if indicator == dir else dir)
+
+func _refresh_indicator() -> void:
+	var phase_on: bool = indicator != 0 and fmod(_ind_t, 0.66) < 0.33 and not wrecked
+	for i in range(_ind_lens.size()):
+		var side: int = 1 if (i % 2) == 0 else 2          # 0,2 = left lenses, 1,3 = right lenses
+		(_ind_lens[i] as Node3D).visible = phase_on and side == indicator
 
 func set_high_beam(on: bool) -> void:
 	high_beam_on = on
@@ -548,6 +615,11 @@ func _physics_process(dt: float) -> void:
 		(ts as CPUParticles3D).emitting = skid_emit
 	_smoke.emitting = damage > 0.55 and not wrecked or wrecked
 	_smoke.amount = 24 if damage < 0.85 else 40
+	if indicator != 0:
+		_ind_t += dt
+		_refresh_indicator()
+		if wrecked:
+			set_indicator(0)
 	var tmat: StandardMaterial3D = model.get("tail_mat")
 	if tmat:
 		tmat.emission_energy_multiplier = 3.5 if (braking_now or in_handbrake) else (2.2 if headlights_on else 0.5)

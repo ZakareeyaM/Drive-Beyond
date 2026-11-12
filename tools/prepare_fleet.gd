@@ -22,6 +22,9 @@ const CARS := {
 	"mustang": {"src": "mustang.glb", "scale": 100.0, "budget": 28000, "paint": "Paint_Material", "wheel_budget": 2500},
 	"airport_car": {"src": "airport_car.glb", "scale": 1.6, "budget": 12000, "paint": "Material_001", "wheel_budget": 1200},
 	"amg_one": {"src": "amg_one.glb", "scale": 1.0, "budget": 30000, "paint": "amgprojone_paint", "wheel_budget": 2500},
+	"civic": {"src": "civic.glb", "scale": 100.0, "budget": 26000, "paint": "Paint_Material", "wheel_budget": 2500, "tall_tyre": true},
+	"camaro": {"src": "camaro.glb", "scale": 1.0, "budget": 24000, "paint": "NOPAINT", "wheel_budget": 2500, "skip": "(?i)blur", "tall_tyre": true},
+	"c63": {"src": "c63.glb", "scale": 1.0, "budget": 26000, "paint": "NOPAINT", "wheel_budget": 2500, "skip": "(?i)position_front_and_back", "tall_tyre": true},
 }
 const WHEEL_RX := "(?i)tire|tyre|wheel|rim|calli|caliper|calier|brake|breaks|disk|disc|hubdecal"
 const GLASS_RX := "(?i)window|clearglass|^glass|_glass$|cglass|^cglass|mglass"
@@ -205,6 +208,9 @@ func _prepare(id: String, cfg: Dictionary) -> Dictionary:
 	var root: Node = doc.generate_scene(st)
 	var pieces: Array = []
 	_collect(root, Transform3D.IDENTITY, pieces)
+	if cfg.has("skip"):   # drop pieces by name (e.g. transparent wheel-blur discs that would render as solid)
+		var srx := RegEx.new(); srx.compile(String(cfg["skip"]))
+		pieces = pieces.filter(func(q): return srx.search(String((q["mi"] as MeshInstance3D).name)) == null)
 	var S: float = float(cfg["scale"])
 	var wrx := RegEx.new(); wrx.compile(WHEEL_RX)
 	var grx := RegEx.new(); grx.compile(GLASS_RX)
@@ -402,6 +408,8 @@ func _prepare(id: String, cfg: Dictionary) -> Dictionary:
 				var m2: Material = d2["mat"]
 				var nm2: String = _mat_name(m2).to_lower()
 				var kk: String = "tyre" if (nm2.contains("tire") or nm2.contains("tyre")) else "rim"
+				if cfg.get("tall_tyre", false) and ((base * (p["xf"] as Transform3D)) * mi8.get_aabb()).size.y > (wb[i] as AABB).size.y * 0.9:
+					kk = "tyre"   # the tallest piece of a wheel is its rubber (models whose tyre has no tyre-named material)
 				if not wg.has(kk):
 					var g3 := Group.new()
 					g3.name = kk

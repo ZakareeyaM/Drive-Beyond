@@ -47,6 +47,7 @@ var near_poi: Dictionary = {}
 var cam_flash: ColorRect = null
 var ui_hooks: Dictionary = {}      # name -> Callable (set by main to open screens)
 var speed_cam_cd: float = 0.0
+var speed_cam_latched: Dictionary = {}
 var near_miss_cd: float = 0.0
 var session_distance: float = 0.0
 var stats_top: float = 0.0
@@ -168,15 +169,83 @@ func _build_pois() -> void:
 		if String(k).begins_with("gas_"):
 			pois.append({"id": k, "type": "gas", "pos": L[k], "radius": 14.0, "label": "Gas Station"})
 			make_beacon(L[k], Color(1.0, 0.8, 0.1), 22.0, 1.0)
+			if k in ["gas_airport_road", "gas_commerce", "gas_resort", "gas_speedway_n", "gas_speedway_s"]:
+				_build_roadside_pumps(L[k])
 	for k in ["lighthouse", "summit", "port", "marlin_bay", "desert_outpost", "ghost_town", "circuit", "marina", "pinecrest", "beach", "stadium", "rooftop_parking", "tunnel", "eastwood", "industrial", "pine_ridge", "farm", "city_center", "north_pass", "airport", "business_district", "resort_district"]:
 		if L.has(k):
 			pois.append({"id": k, "type": "discover", "pos": L[k], "radius": 55.0 if k != "city_center" else 90.0, "label": String(k).capitalize().replace("_", " ")})
 	_build_airport()
+	_build_race_tracks()
 	_place_collectibles()
 
 var station: GasStation = null
 var district: PackDistrict = null
 var airport: Airport = null
+var race_tracks: RaceTracks = null
+const SPEED_CAM_REWARD := 100
+var kart_loan: Dictionary = {}      # {"home": Vehicle (parked original car), "track": id} while a go-kart is borrowed
+
+func _build_race_tracks() -> void:
+	var t0: int = Time.get_ticks_msec()
+	race_tracks = RaceTracks.new()
+	add_child(race_tracks)
+	race_tracks.build(self)
+	print("RACE TRACKS built in %d ms" % [Time.get_ticks_msec() - t0])
+
+## Borrow the go-kart of a track.  The car the player was in is parked (frozen, untouched: position, fuel and damage are kept) and
+## comes back, unchanged, when the kart is returned.
+func take_kart(id: String) -> void:
+	if race_tracks == null or not kart_loan.is_empty() or player_car == null:
+		return
+	if missions and missions.blocks_exit():
+		Game.notify.emit("Finish or abandon the mission first", "warn")
+		return
+	var home: Vehicle = player_car
+	var spot: Dictionary = race_tracks.kart_spot(id)
+	home.clear_inputs()
+	home.is_player = false
+	home.engine_on = false
+	home.set_headlights(false)
+	home.set_indicator(0)
+	home.set_inputs(0.0, 1.0, 0.0, true)   # parked: held by the handbrake (a frozen VehicleBody3D produced NaN transforms)
+	for pair in [["body_entered", "_on_car_body_entered"], ["crashed", "_on_car_crashed"], ["destroyed", "_on_car_destroyed"]]:
+		var cb := Callable(self, pair[1])
+		if home.is_connected(pair[0], cb):
+			home.disconnect(pair[0], cb)
+	kart_loan = {"home": home, "track": id}
+	player_car = null
+	race_tracks.set_kart_available(id, false)
+	spawn_player_car((spot["pos"] as Vector3) + Vector3(0, 0.25, 0), spot["yaw"], Data.KART_ID)
+	enter_drive_mode()
+	Game.notify.emit("Go-Kart taken - your %s waits here. Cross the start/finish line for $%d per lap" % [Data.vehicle(home.vid)["name"], RaceTracks.LAP_REWARD], "info")
+
+## Give the kart back and get into the original car again (also used when the kart is wrecked).
+func return_kart(reason: String = "") -> void:
+	if kart_loan.is_empty():
+		return
+	var home: Vehicle = kart_loan["home"]
+	var id: String = kart_loan["track"]
+	var kart: Vehicle = player_car
+	kart_loan = {}
+	if kart != null and is_instance_valid(kart):
+		kart.queue_free()
+	player_car = home
+	home.clear_inputs()
+	home.is_player = true
+	home.engine_on = true
+	home.body_entered.connect(_on_car_body_entered)
+	home.crashed.connect(_on_car_crashed)
+	home.destroyed.connect(_on_car_destroyed)
+	traffic.player = home
+	traffic.player_vehicle = home
+	audio.attach_vehicle(home)
+	cam.target = home
+	race_tracks.set_kart_available(id, true)
+	enter_drive_mode()
+	if bool(Game.settings.get("headlights_auto", true)):
+		home.set_headlights(env.is_night())
+	Game.notify.emit(reason if reason != "" else "Go-Kart returned - back in your %s" % Data.vehicle(home.vid)["name"], "info")
+	Game.save_game()
 
 func _build_airport() -> void:
 	var t0: int = Time.get_ticks_msec()
@@ -220,6 +289,59 @@ func _build_station(c: Vector3) -> void:
 	var t_d: int = Time.get_ticks_msec()
 	district.build(gen)
 	print("DISTRICT %d pack buildings, %d nodes, built in %d ms" % [district.count, district.get_child_count(), Time.get_ticks_msec() - t_d])
+
+## Small roadside fuel stop (canopy, two pump islands, price pylon) for the stations added along the expansion roads.
+## Drive-in from any side: the interaction circle (14 m) covers the whole forecourt.
+func _build_roadside_pumps(c: Vector3) -> void:
+	var root := Node3D.new()
+	root.name = "RoadsideStation"
+	root.position = c
+	add_child(root)
+	var white := StandardMaterial3D.new()
+	white.albedo_color = Color(0.9, 0.9, 0.92)
+	var red := StandardMaterial3D.new()
+	red.albedo_color = Color(0.85, 0.12, 0.1)
+	var dark := StandardMaterial3D.new()
+	dark.albedo_color = Color(0.2, 0.2, 0.24)
+	var slab := StandardMaterial3D.new()
+	slab.albedo_color = Color(0.3, 0.3, 0.33)
+	var parts: Array = [
+		[Vector3(30, 0.2, 18), Vector3(0, 0.1, 0), slab, true],
+		[Vector3(16, 0.5, 9), Vector3(0, 5.4, 0), white, false],
+		[Vector3(16.2, 0.25, 9.2), Vector3(0, 5.1, 0), red, false],
+		[Vector3(0.5, 5.2, 0.5), Vector3(-7.5, 2.6, -3.8), dark, true], [Vector3(0.5, 5.2, 0.5), Vector3(7.5, 2.6, -3.8), dark, true],
+		[Vector3(0.5, 5.2, 0.5), Vector3(-7.5, 2.6, 3.8), dark, true], [Vector3(0.5, 5.2, 0.5), Vector3(7.5, 2.6, 3.8), dark, true],
+		[Vector3(1.0, 1.5, 0.6), Vector3(-3.0, 0.95, 0), red, true], [Vector3(1.0, 1.5, 0.6), Vector3(3.0, 0.95, 0), red, true],
+		[Vector3(0.6, 7.0, 0.6), Vector3(-13.0, 3.5, -7.0), dark, true],
+		[Vector3(2.6, 1.6, 0.4), Vector3(-13.0, 7.3, -7.0), red, false],
+	]
+	for pr in parts:
+		var mi := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = pr[0]
+		mi.mesh = bm
+		mi.position = pr[1]
+		mi.material_override = pr[2]
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		root.add_child(mi)
+		if pr[3]:
+			var sb := StaticBody3D.new()
+			sb.collision_layer = 1
+			var cs := CollisionShape3D.new()
+			var bs := BoxShape3D.new()
+			bs.size = pr[0]
+			cs.shape = bs
+			sb.position = pr[1]
+			sb.add_child(cs)
+			root.add_child(sb)
+	var lb := Label3D.new()
+	lb.text = "FUEL"
+	lb.font_size = 64
+	lb.pixel_size = 0.012
+	lb.modulate = Color(1, 1, 1)
+	lb.outline_size = 8
+	lb.position = Vector3(-13.0, 7.3, -6.75)
+	root.add_child(lb)
 
 func _structure(t: String) -> Dictionary:
 	for s in gen.structures:
@@ -393,9 +515,9 @@ func road_pose(pos: Vector3) -> Dictionary:
 	p += right * (float(e["width"]) * 0.25)
 	return {"pos": p, "yaw": yaw}
 
-func spawn_player_car(pos: Vector3, yaw: float) -> void:
-	var vid: String = Game.selected
-	var rec: Dictionary = Game.owned[vid]
+func spawn_player_car(pos: Vector3, yaw: float, vid_override: String = "") -> void:
+	var vid: String = Game.selected if vid_override == "" else vid_override
+	var rec: Dictionary = Game.owned[vid] if vid_override == "" else {"custom": Data.default_custom(vid), "upg": Data.default_upgrades(), "damage": 0.0, "fuel": 1.0}
 	var v := Vehicle.new()
 	v.name = "PlayerCar"
 	v.is_player = true
@@ -471,6 +593,7 @@ func try_exit_vehicle() -> void:
 		Game.notify.emit("No room to exit here", "warn")
 		return
 	player_car.clear_inputs()
+	player_car.set_indicator(0)
 	player_car.set_headlights(player_car.headlights_on)
 	enter_foot_mode(hit["position"] + Vector3(0, 0.1, 0), player_car.rotation.y)
 	exit_cooldown = 0.5
@@ -501,6 +624,8 @@ func respawn_on_road() -> void:
 	respawn_car_at(p, last_road_yaw)
 
 func send_to_garage(reason: String) -> void:
+	if not kart_loan.is_empty():
+		return_kart()
 	var gp: Vector3 = gen.landmarks.get("home_garage", Vector3(0, 6, 20))
 	var pose: Dictionary = road_pose(gp)
 	if mode == "foot":
@@ -606,6 +731,8 @@ func _physics_process(dt: float) -> void:
 		_handle_input(dt)
 	_hazards(dt)
 	_update_poi(dt)
+	if race_tracks != null:
+		race_tracks.update(dt, player_pos(), mode == "drive")
 	_update_prompt()
 	sync_timer -= dt
 	if sync_timer <= 0.0:
@@ -642,6 +769,10 @@ func _handle_input(dt: float) -> void:
 		player_car.set_inputs(thr, brk, steer, hb, nit)
 		if Input.is_action_just_pressed("headlights"):
 			player_car.set_headlights(not player_car.headlights_on)
+		if Input.is_action_just_pressed("indicator_left"):
+			player_car.toggle_indicator(1)
+		if Input.is_action_just_pressed("indicator_right"):
+			player_car.toggle_indicator(2)
 		if Input.is_action_just_pressed("reset_car"):
 			_reset_car()
 		audio.set_horn(Input.is_action_pressed("horn"))
@@ -749,6 +880,9 @@ func _on_car_crashed(sev: float, wpos: Vector3) -> void:
 		Input.vibrate_handheld(int(60 + sev * 160))
 
 func _on_car_destroyed() -> void:
+	if not kart_loan.is_empty():
+		return_kart("Go-Kart wrecked - back in your car")
+		return
 	Game.notify.emit("Your car is wrecked", "bad")
 	await get_tree().create_timer(2.2).timeout
 	if player_car and player_car.wrecked:
@@ -791,15 +925,18 @@ func _update_poi(dt: float) -> void:
 		(c["node"] as Node3D).position.y = float((c["pos"] as Vector3).y) + 1.4 + sin(Time.get_ticks_msec() * 0.003) * 0.15
 	# speed cameras
 	speed_cam_cd -= dt
-	if mode == "drive" and speed_cam_cd <= 0.0:
-		for sc in gen.speed_cameras:
-			var s3: Vector3 = sc
-			if Vector2(s3.x - p.x, s3.z - p.z).length() < 16.0 and player_car.abs_speed > 36.0:
+	if mode == "drive":
+		for ci in range(gen.speed_cameras.size()):
+			var s3: Vector3 = gen.speed_cameras[ci]
+			var inside: bool = Vector2(s3.x - p.x, s3.z - p.z).length() < 16.0
+			if not inside:
+				speed_cam_latched.erase(ci)         # must leave the camera's area before it can pay again
+			elif speed_cam_cd <= 0.0 and not speed_cam_latched.has(ci) and player_car.abs_speed > 36.0:
+				speed_cam_latched[ci] = true
 				speed_cam_cd = 6.0
-				var fine: int = mini(Game.money, 150)
-				Game.add_money(-fine, "Speed camera")
-				if police:
-					police.report_crime(0.25, "Speeding")
+				Game.add_money(SPEED_CAM_REWARD, "Speed camera bonus")
+				Game.notify.emit("Speed camera flash!  +$%d bonus" % SPEED_CAM_REWARD, "info")
+				Game.save_game()
 				audio.play_ui("camera")
 				_flash_screen()
 				break
@@ -844,6 +981,14 @@ func _poi_prompt(poi: Dictionary) -> Array:
 	match poi["type"]:
 		"airport_car":
 			return ["[%s] Take the Airport Shuttle Cart  (free)" % key, take_airport_car]
+		"kart":
+			if not kart_loan.is_empty():
+				if kart_loan["track"] == poi["track"]:
+					return ["[%s] Return the Go-Kart and get back in your %s" % [key, Data.vehicle((kart_loan["home"] as Vehicle).vid)["name"]], return_kart]
+				return ["Return the go-kart at its own track first", Callable()]
+			if mode != "drive" and mode != "foot":
+				return ["", Callable()]
+			return ["[%s] Drive the Go-Kart  (free, $%d per lap)" % [key, RaceTracks.LAP_REWARD], take_kart.bind(String(poi["track"]))]
 		"garage":
 			return ["[%s] Open Garage" % key, _open.bind("garage")]
 		"dealership":
@@ -914,6 +1059,13 @@ func _sync_state() -> void:
 		Game.owned[vid]["damage"] = player_car.damage
 		Game.owned[vid]["fuel"] = player_car.fuel
 	var p: Vector3 = player_pos()
+	if not kart_loan.is_empty():
+		var hc: Vehicle = kart_loan["home"]
+		Game.player_pos = hc.global_position
+		Game.player_rot = hc.rotation.y
+		Game.owned[hc.vid]["damage"] = hc.damage
+		Game.owned[hc.vid]["fuel"] = hc.fuel
+		return
 	if mode == "drive":
 		Game.player_pos = p
 		Game.player_rot = player_car.rotation.y
@@ -923,6 +1075,8 @@ func _sync_state() -> void:
 
 ## Replace the active car with the currently selected one (after garage use)
 func swap_player_car() -> void:
+	if not kart_loan.is_empty():
+		return_kart()
 	var old: Vehicle = player_car
 	var pos: Vector3 = old.global_position
 	var yaw: float = old.rotation.y
@@ -948,6 +1102,11 @@ func apply_custom_to_car() -> void:
 
 func shutdown_session() -> void:
 	running = false
+	if not kart_loan.is_empty():
+		var hv: Vehicle = kart_loan["home"]
+		kart_loan = {}
+		if is_instance_valid(hv):
+			hv.queue_free()
 	Game.in_world = false
 	if player_car:
 		player_car.queue_free()
