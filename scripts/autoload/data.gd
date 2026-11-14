@@ -129,7 +129,10 @@ func _init() -> void:
 		VEHICLES.append((e["spec"] as Dictionary).duplicate(true))
 	# the collection cars (assets/vehicles/fleet, see FleetVehicles)
 	for e in FleetVehicles.LIST:
-		VEHICLES.append((e["spec"] as Dictionary).duplicate(true))
+		var sp: Dictionary = (e["spec"] as Dictionary).duplicate(true)
+		if PRICE_OVERRIDE.has(String(sp["id"])):
+			sp["price"] = int(PRICE_OVERRIDE[String(sp["id"])])
+		VEHICLES.append(sp)
 
 ## Fuel tank size in litres (spec "tank", else by category).
 func tank_litres(id: String) -> float:
@@ -154,12 +157,24 @@ func vehicle(id: String) -> Dictionary:
 ## The player-facing collection (dealership / garage / saves): the BMW M6 starter + the 7 fleet cars.
 ## Every other entry of VEHICLES (the old procedural cars, the traffic pack, the police cruiser) is kept only for
 ## traffic / police / AI use and is never offered to the player.
-const COLLECTION := ["bmw_m6", "civic", "camaro", "c63", "countach", "m3_gtr", "sesto", "nsx", "gclass", "mustang", "amg_one", "airport_car"]
+const COLLECTION := ["bmw_m6", "civic", "camaro", "c63", "dune_buggy", "scifi_buggy", "countach", "m3_gtr", "sesto", "nsx", "gclass", "mustang", "amg_one", "airport_car"]
+## Dealership price (dollars) of purchasable vehicles whose price is tuned here instead of in the generated FleetVehicles table.
+## The sci-fi buggy sits just under the cheapest road car of the shop (BMW M3 $54,000) and needs the REP tier of 100 (price < $45,000).
+const PRICE_OVERRIDE := {"scifi_buggy": 38000}
+## Bought once, then kept for good: never sold and never counted against the garage slots (so a full garage cannot block the purchase).
+const PERMANENT_VEHICLES := ["scifi_buggy"]
+## The off-road buggies (surface-aware handling, see Vehicle._surface_mult)
+const BUGGY_IDS := ["dune_buggy", "scifi_buggy"]
+## Surface table of the buggies (all values configurable). grip = tyre grip multiplier, drag = rolling-resistance coefficient
+## (force = -velocity * mass * drag, 1/s).  Per-vehicle "bonus" multiplies the grip on a surface (dune buggy: sand tyres, sci-fi: AWD on dirt / grass).
+const SURFACE_GRIP := {"asphalt": 1.0, "dirt": 0.9, "sand": 0.78, "grass": 0.86, "other": 0.95}
+const SURFACE_DRAG := {"asphalt": 0.0, "dirt": 0.03, "sand": 0.16, "grass": 0.07, "other": 0.0}
+const SURFACE_BONUS := {"dune_buggy": {"sand": 1.1, "dirt": 1.04}, "scifi_buggy": {"dirt": 1.07, "grass": 1.05, "sand": 1.02}}
 ## The four cars every player owns from the very first launch (free, no mission / unlock): BMW M6 + Civic Type R + Camaro SS + AMG C 63 DTM.
-const STARTER_VEHICLES := ["bmw_m6", "civic", "camaro", "c63"]
+const STARTER_VEHICLES := ["bmw_m6", "civic", "camaro", "c63", "dune_buggy"]
 ## Vehicles that cost nothing and are NOT sold in the dealership: the three extra starters and the airport shuttle cart
 ## (picked up in the world). The BMW M6 is also free but stays listed so the dealership / old saves behave as before.
-const FREE_VEHICLES := ["civic", "camaro", "c63", "airport_car"]
+const FREE_VEHICLES := ["civic", "camaro", "c63", "dune_buggy", "airport_car"]
 ## Track go-karts: drivable, free, never owned / listed in the garage - borrowed at the race circuits (World.take_kart).
 const KART_ID := "go_kart"
 
@@ -176,6 +191,12 @@ func shop_ids() -> Array:
 
 func is_free_vehicle(id: String) -> bool:
 	return FREE_VEHICLES.has(id) or id == "bmw_m6"
+
+func is_permanent(id: String) -> bool:
+	return PERMANENT_VEHICLES.has(id) or is_free_vehicle(id)
+
+func is_buggy(id: String) -> bool:
+	return BUGGY_IDS.has(id)
 
 func is_starter(id: String) -> bool:
 	return STARTER_VEHICLES.has(id)

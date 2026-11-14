@@ -15,6 +15,8 @@ CARS = [
  ("camaro","Chevrolet Camaro SS","Muscle Car",0,1500,7.2,74,11.2,0.56,3.9,48,"RWD",[3.2,2.0,1.45,1.1,0.85],3.5,"v8",7000,False,0.15,72,(0.22,0.22,0.23),{"free":True,"starter":True},{}),
  ("c63","Mercedes-AMG C 63 DTM","Race Car",0,1100,8.4,80,12.6,0.54,4.5,56,"RWD",[3.1,2.0,1.5,1.15,0.92],3.5,"v8",8500,False,0.1,70,(0.86,0.86,0.9),{"free":True,"starter":True},{}),
  ("go_kart","Go-Kart","Kart",0,190,6.0,21,9.0,0.8,3.8,24,"RWD",[3.0,1.9,1.2],4.0,"i4",11000,False,0.06,6,(0.1,0.25,0.7),{"free":True,"kart":True,"ai":8.0,"susp":0.12},{}),
+ ("dune_buggy","Yellow Dune Buggy","Off-Road",0,640,6.2,50,9.6,0.62,3.3,34,"RWD",[3.2,2.0,1.4,1.05],4.0,"i4",8200,False,0.24,38,(0.95,0.72,0.1),{"free":True,"starter":True,"offroad":True,"susp":0.36,"ai":8.0,"buggy":True,"W":2.0},{"y_off":0.0}),
+ ("scifi_buggy","Sci-Fi Buggy","Off-Road",38000,820,7.6,56,10.4,0.64,3.5,40,"AWD",[3.0,1.9,1.35,1.0],3.8,"electric",9000,False,0.22,45,(0.1,0.1,0.12),{"offroad":True,"susp":0.34,"ai":8.0,"buggy":True,"W":1.95},{"y_off":0.0}),
  ("amg_one","Mercedes-AMG ONE","Hypercar",480000,1400,11.5,104,15.0,0.52,5.2,64,"AWD",[2.9,2.0,1.55,1.25,1.02,0.85,0.7],3.4,"v6",11000,True,0.08,60,(0.9,0.9,0.92),{},{}),
 ]
 def f(x): return ("%.3f" % x).rstrip("0").rstrip(".") if abs(x) > 1e-9 else "0"

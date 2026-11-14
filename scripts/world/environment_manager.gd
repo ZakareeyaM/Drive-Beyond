@@ -32,7 +32,11 @@ const KEYS := [
 ]
 
 var hour: float = 9.0
-var day_speed: float = 1.0 / 60.0      # game hours per real second (24 min / day)
+## Central day/night speed: 1.0 = a 24 minute day (1 game hour per real minute), 0.5 = half speed (48 minutes).  Only the world clock
+## uses it; physics, traffic, audio and weather timers run on real time.  The sky, sun/moon, lights, windows, headlights, weather
+## darkening and the HUD clock all read the same `hour`, so they stay in sync automatically.
+const TIME_SCALE := 0.5
+var day_speed: float = TIME_SCALE / 60.0      # game hours per real second
 var weather: String = "clear"
 var target_weather: String = "clear"
 var blend: float = 1.0

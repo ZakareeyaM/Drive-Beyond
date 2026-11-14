@@ -29,7 +29,13 @@ var _high: Array = []
 var _fill: OmniLight3D = null
 var high_beam_on: bool = false
 var headlight_cfg: Dictionary = {}
-var is_player: bool = false
+var is_player: bool = false:
+	set(v):
+		var chg: bool = v != is_player
+		is_player = v
+		if chg and not _spot.is_empty():
+			_refresh_beams()        # high beam / near-fill are player-only: re-evaluate when the role changes (enter / exit / vehicle switch)
+var headlights_user: int = -1         # manual override of the auto headlights: -1 = automatic, 0 = forced off, 1 = forced on (owned by World._sync_headlights)
 var is_police: bool = false
 var is_traffic: bool = false
 var handling_arcade: bool = true
@@ -64,6 +70,11 @@ var headlights_on: bool = false
 var engine_on: bool = true
 var wrecked: bool = false
 var on_road: bool = true
+var surface: String = "asphalt"        # buggies only: "asphalt" | "dirt" | "sand" | "grass" | "other" (WorldGen.surface_at, sampled every few physics frames)
+var surf_drag: float = 0.0
+var _surf_frame: int = 0
+var is_buggy: bool = false
+var surf_grip: float = 1.0
 var shift_timer: float = 0.0
 var steer_cur: float = 0.0
 var _thr_s: float = 0.0
@@ -85,6 +96,7 @@ var respawn_hold: float = 0.0
 func configure(p_vid: String, p_custom: Dictionary, p_upg: Dictionary, p_damage: float = 0.0, p_fuel: float = 1.0) -> void:
 	vid = p_vid
 	spec = Data.vehicle(vid)
+	is_buggy = Data.is_buggy(vid)
 	custom = p_custom.duplicate(true)
 	upg = Data.default_upgrades()
 	upg.merge(p_upg, true)
@@ -316,6 +328,8 @@ func _build_indicators() -> void:
 		if is_instance_valid(n):
 			(n as Node).queue_free()
 	_ind_lens.clear()
+	if not bool(spec.get("kart", false)):
+		return      # no indicator lenses (and no indicator processing) on anything but the go-karts
 	_ind_mat = StandardMaterial3D.new()
 	_ind_mat.albedo_color = Color(1.0, 0.55, 0.05)
 	_ind_mat.emission_enabled = true
@@ -357,6 +371,8 @@ func _build_indicators() -> void:
 		_ind_lens.append(mi)
 
 func set_indicator(dir: int) -> void:
+	if dir != 0 and not bool(spec.get("kart", false)):
+		dir = 0
 	indicator = dir
 	_ind_t = 0.0
 	_refresh_indicator()
@@ -376,12 +392,18 @@ func set_high_beam(on: bool) -> void:
 
 func _refresh_beams() -> void:
 	var ok: bool = headlights_on and not (damage > 0.7) and not lamps_broken
+	var hc: Dictionary = headlight_cfg
 	for i in range(_spot.size()):
 		var alive: bool = ok and not (i == 0 and damage > 0.35)
-		(_spot[i] as SpotLight3D).visible = alive
+		var sp: SpotLight3D = _spot[i]
+		sp.light_energy = float(hc["energy"])        # configured baseline, re-applied on every on/off so toggling can never leave a dimmed beam
+		sp.visible = alive
 		if i < _high.size():
-			(_high[i] as SpotLight3D).visible = alive and high_beam_on and is_player
+			var hs: SpotLight3D = _high[i]
+			hs.light_energy = float((hc["high"] as Dictionary)["energy"])
+			hs.visible = alive and high_beam_on and is_player
 	if _fill:
+		_fill.light_energy = float((hc["fill"] as Dictionary)["energy"])
 		_fill.visible = ok and is_player
 
 func set_headlights(on: bool) -> void:
@@ -404,6 +426,16 @@ func clear_inputs() -> void:
 # ----------------------------------------------------------------------------
 func _surface_mult(p: Vector3) -> float:
 	var m: float = 1.0
+	if is_buggy and surface_world != null:
+		# off-road buggies: table driven (Data.SURFACE_*), the terrain lookup runs only every 4th physics frame
+		_surf_frame += 1
+		if _surf_frame >= 4 or _surf_frame < 0:
+			_surf_frame = 0
+			on_road = surface_world.on_road(p.x, p.z)
+			surface = surface_world.surface_at(p.x, p.z)
+			surf_drag = float(Data.SURFACE_DRAG.get(surface, 0.0))
+			surf_grip = float(Data.SURFACE_GRIP.get(surface, 1.0)) * float((Data.SURFACE_BONUS.get(vid, {}) as Dictionary).get(surface, 1.0))
+		return surf_grip * weather_grip
 	if surface_world != null:
 		if not surface_world.on_road(p.x, p.z):
 			var reg: String = surface_world.region_at(p.x, p.z)
@@ -432,6 +464,8 @@ func _physics_process(dt: float) -> void:
 	shift_timer = maxf(0.0, shift_timer - dt)
 	# --- crash detection (sudden velocity change) --------------------------------
 	var dv: Vector3 = vel - prev_vel
+	if is_buggy:
+		dv.y = 0.0    # landing a jump on long-travel off-road suspension is not a crash; only horizontal hits count
 	if crash_cd <= 0.0 and prev_vel.length() > 4.0:
 		var imp: float = dv.length()
 		var thr: float = 5.5 if handling_arcade else 4.5
@@ -593,6 +627,9 @@ func _physics_process(dt: float) -> void:
 		apply_torque(tilt * mass * 1.5)
 	if in_handbrake and abs_speed > 1.0:
 		apply_central_force(-vel.normalized() * mass * 3.0)
+	# buggies: rolling resistance of loose surfaces (sand > grass > dirt)
+	if is_buggy and surf_drag > 0.0 and contact_n > 0:
+		apply_central_force(-Vector3(vel.x, 0.0, vel.z) * mass * surf_drag)
 	# off-road penalty
 	if not on_road and not bool(spec.get("offroad", false)):
 		apply_central_force(-vel * mass * 0.18)

@@ -548,10 +548,11 @@ func _process(delta: float) -> void:
 			_one_shot("thunder", fx_players, -2.0, randf_range(0.8, 1.1))
 	# ai engines
 	for e in ai_engines.duplicate():
-		var c: Vehicle = e["car"]
-		if not is_instance_valid(c) or not is_instance_valid(e["player"]) or c.is_queued_for_deletion():
+		var cv: Variant = e["car"]       # untyped: a freed car cannot be assigned to a typed Vehicle variable (that raised an error EVERY frame)
+		if not is_instance_valid(cv) or not is_instance_valid(e["player"]) or (cv as Node).is_queued_for_deletion():
 			ai_engines.erase(e)
 			continue
+		var c: Vehicle = cv
 		var p: AudioStreamPlayer3D = e["player"]
 		p.pitch_scale = 0.5 + clampf(c.rpm_norm, 0.0, 1.2) * 2.4
 		p.volume_db = -4.0 + linear_to_db(0.4 + 0.6 * c.in_throttle)

@@ -121,3 +121,17 @@ Missions are plain JSON — add your own entries to `data/missions/missions.json
 - **Indicators** – keys `Z` / `X` (D-pad left/right on gamepad), on-screen arrows above the steering pads; 4 flashing lenses, one side at a time, off on exit.
 - **Night lighting** – lamps now also on expressways and country roads; larger/brighter light pools (no extra real-time lights).
 - **Map** – district tints and labels, legend, compass, circuit/airport icons, existing zoom/coordinates/GPS.
+
+## Off-road buggies, performance, day/night, headlights & raceway entrance update
+
+**Vehicles** (`assets/vehicles/fleet/`, converted by `tools/prepare_buggy.gd`, registered via `tools/gen_fleet_vehicles.py`)
+- Yellow Dune Buggy (`dune_buggy`): free, owned from the start, cannot be sold.
+- Sci-Fi Buggy (`scifi_buggy`): bought once in the dealership for `Data.PRICE_OVERRIDE["scifi_buggy"]` ($38,000, money only), permanent, not sold, does not use a garage slot; the existing owned-check stops double charging.
+- Surface-aware physics (`Vehicle._surface_mult`, `WorldGen.surface_at`, tables `Data.SURFACE_GRIP / SURFACE_DRAG / SURFACE_BONUS`): asphalt / dirt / sand / grass / other; landing a jump is not counted as a crash.
+
+**Other changes**
+- Indicators: HUD buttons, keys, lenses and processing exist on the go-karts only.
+- Day/night: `EnvironmentManager.TIME_SCALE = 0.5` (48-minute day); everything reads the same clock.
+- Headlights: one controller (`World._sync_headlights`), manual override kept until next dusk/dawn, beam energy re-applied from the configured baseline, player-only beams refreshed on role change.
+- Map: terrain image built on a worker thread, roads pre-baked (one draw call per road type), markers read once, 3D rendering skipped while open. Fixed an error raised every frame by freed AI cars in `AudioManager._process`.
+- Riverside Raceway: drive-through entrance cut into the pit-building facade, plinth step turned into a ramp (`tools/cut_gate_a.gd`). Grand Prix Circuit untouched.

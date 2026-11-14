@@ -150,8 +150,8 @@ func _tab_cars() -> void:
 	var sel: Button = UIKit.accent_button("Drive this car" if vid != Game.selected else "Currently selected", _select_car, 54)
 	sel.disabled = vid == Game.selected
 	content.add_child(sel)
-	var sell: Button = UIKit.button("Free car - cannot be sold" if Data.is_free_vehicle(vid) else ("Sell for " + Game.fmt_money(Data.sell_value(vid, Game.owned[vid]["upg"]))), _sell, 50)
-	sell.disabled = Game.owned.size() <= 1 or Data.is_free_vehicle(vid)
+	var sell: Button = UIKit.button("Permanent vehicle - cannot be sold" if Data.is_permanent(vid) else ("Sell for " + Game.fmt_money(Data.sell_value(vid, Game.owned[vid]["upg"]))), _sell, 50)
+	sell.disabled = Game.owned.size() <= 1 or Data.is_permanent(vid)
 	content.add_child(sell)
 	if Game.garage_slots < 12:
 		content.add_child(UIKit.button("Expand garage (+1 slot)  " + Game.fmt_money(Game.expand_cost()), func() -> void: Game.expand_garage(), 50))

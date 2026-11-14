@@ -168,6 +168,23 @@ func road_weight(x: float, z: float) -> float:
 func on_road(x: float, z: float) -> bool:
 	return road_weight(x, z) > 0.6
 
+## Driving surface under (x, z) for the surface-aware off-road buggies: "asphalt" | "dirt" | "sand" | "grass" | "other".
+## Road grid (incl. the race tracks, which carve into it) and the flat airport pad = asphalt; the rest follows the terrain region.
+func surface_at(x: float, z: float) -> String:
+	if on_road(x, z):
+		return "asphalt"
+	for rp in rect_pads:
+		if (rp["r"] as Rect2).has_point(Vector2(x, z)):
+			return "asphalt"
+	match region_at(x, z):
+		"desert", "coast":
+			return "sand"
+		"mountain", "industrial":
+			return "dirt"
+		"forest", "countryside", "suburb":
+			return "grass"
+	return "other"
+
 func region_at(x: float, z: float) -> String:
 	var r: float = sqrt(x * x + z * z)
 	if x < -880.0: return "ocean"

@@ -113,6 +113,8 @@ func rep_level() -> int:
 	return int(floor(sqrt(float(rep) / 25.0))) + 1
 
 func rep_required(vid: String) -> int:
+	if Data.PERMANENT_VEHICLES.has(vid):
+		return 0          # money is the only requirement of the sci-fi buggy
 	var p: int = int(Data.vehicle(vid)["price"])
 	if p < 20000: return 0
 	if p < 45000: return 100
@@ -145,14 +147,14 @@ func grant_starters() -> void:
 func slots_used() -> int:
 	var n: int = 0
 	for oid in owned:
-		if not Data.is_free_vehicle(String(oid)):
+		if not Data.is_permanent(String(oid)):
 			n += 1
 	return n
 
 func buy_vehicle(vid: String) -> bool:
 	if owned.has(vid):
 		return false
-	if slots_used() >= garage_slots:
+	if slots_used() >= garage_slots and not Data.PERMANENT_VEHICLES.has(vid):
 		notify.emit("Garage full - sell a car or expand the garage", "warn")
 		return false
 	if rep < rep_required(vid):
@@ -184,8 +186,8 @@ func claim_free_vehicle(vid: String) -> bool:
 	return added
 
 func sell_vehicle(vid: String) -> bool:
-	if Data.is_free_vehicle(vid):
-		notify.emit("Free cars cannot be sold", "warn")
+	if Data.is_permanent(vid):
+		notify.emit("This vehicle cannot be sold", "warn")
 		return false
 	if not owned.has(vid) or owned.size() <= 1:
 		notify.emit("You must keep at least one car", "warn")

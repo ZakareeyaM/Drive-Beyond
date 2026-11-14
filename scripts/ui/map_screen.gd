@@ -17,6 +17,79 @@ var hover_id: String = ""
 var pinch_base: float = 0.0
 
 static var cached_tex: ImageTexture = null
+static var _tex_task: int = -1                   # WorkerThreadPool task id of the background terrain-image build (-1 = none)
+static var _tex_img: Image = null
+static var _road_cache: Dictionary = {}          # lod ("far" / "near") -> {kind: PackedVector2Array of segment pairs, world x/z}
+static var _road_edges: int = -1
+var _markers: Array = []                         # mission markers, read once per open (the world is paused while the map is shown)
+var _lbl_w: Dictionary = {}                      # "text|size" -> measured string width
+var _prev_3d_disabled: bool = false
+
+const MAP_N := 200
+
+## Starts the terrain image of the map on a worker thread (called once when the world is ready), so the first map open no longer
+## pays ~0.5 s of noise sampling on the main thread.  The texture itself is created on the main thread when it is first needed.
+static func prewarm(gen: WorldGen) -> void:
+	if cached_tex != null or _tex_task != -1:
+		return
+	_tex_task = WorkerThreadPool.add_task(func() -> void: _tex_img = _render_image(gen), false, "map terrain image")
+
+static func _render_image(gen: WorldGen) -> Image:
+	var n: int = MAP_N
+	var img := Image.create(n, n, false, Image.FORMAT_RGB8)
+	var step: float = WorldGen.HALF * 2.0 / float(n)
+	for j in n:
+		for i in n:
+			var x: float = -WorldGen.HALF + (float(i) + 0.5) * step
+			var z: float = -WorldGen.HALF + (float(j) + 0.5) * step
+			var h: float = gen.nat_h(x, z)
+			var reg: String = gen.region_at(x, z)
+			var c: Color
+			if h < 0.0:
+				c = Color(0.05, 0.12, 0.2).lerp(Color(0.1, 0.22, 0.34), clampf(1.0 + h / 30.0, 0.0, 1.0))
+			elif h < 1.5:
+				c = Color(0.55, 0.5, 0.38)
+			else:
+				match reg:
+					"city": c = Color(0.16, 0.17, 0.2)
+					"desert": c = Color(0.45, 0.38, 0.24)
+					"mountain": c = Color(0.28, 0.3, 0.28).lerp(Color(0.6, 0.6, 0.62), clampf(h / 160.0, 0.0, 1.0))
+					"forest": c = Color(0.1, 0.24, 0.12)
+					"industrial": c = Color(0.2, 0.2, 0.22)
+					_: c = Color(0.16, 0.28, 0.15)
+				c = c.lightened(clampf(h / 400.0, 0.0, 0.2))
+			img.set_pixel(i, j, c)
+	return img
+
+## All roads as segment pairs in world x/z, one array per road kind and level of detail (built once, drawn with a single call per kind)
+static func _roads(gen: WorldGen, lod: String) -> Dictionary:
+	if _road_edges != gen.edges.size():
+		_road_cache.clear()
+		_road_edges = gen.edges.size()
+	if _road_cache.has(lod):
+		return _road_cache[lod]
+	var step: int = 4 if lod == "far" else 2
+	var out: Dictionary = {}
+	for e in gen.edges:
+		var pts: PackedVector3Array = e["pts"]
+		var k: String = e["kind"]
+		if not out.has(k):
+			out[k] = PackedVector2Array()
+		var arr: PackedVector2Array = out[k]
+		var prev: Vector2 = Vector2(pts[0].x, pts[0].z)
+		var i: int = step
+		while true:
+			var idx: int = mini(i, pts.size() - 1)
+			var cur := Vector2(pts[idx].x, pts[idx].z)
+			arr.append(prev)
+			arr.append(cur)
+			prev = cur
+			if idx >= pts.size() - 1:
+				break
+			i += step
+		out[k] = arr
+	_road_cache[lod] = out
+	return out
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -26,6 +99,11 @@ func _ready() -> void:
 	var pp: Vector3 = world.player_pos()
 	center = Vector2(pp.x, pp.z)
 	tex = _build_tex()
+	_markers = world.missions.all_markers()
+	# the map covers the whole screen: skip rendering the 3D world behind it while it is open (restored in _exit_tree)
+	var vp: Viewport = get_viewport()
+	_prev_3d_disabled = vp.disable_3d
+	vp.disable_3d = true
 	var left := PanelContainer.new()
 	left.position = Vector2(16, 16)
 	left.custom_minimum_size = Vector2(360, 0)
@@ -56,6 +134,11 @@ func _ready() -> void:
 	add_child(info_lbl)
 	_fill_list()
 
+func _exit_tree() -> void:
+	var vp: Viewport = get_viewport()
+	if vp != null:
+		vp.disable_3d = _prev_3d_disabled
+
 func _recenter() -> void:
 	var pp: Vector3 = world.player_pos()
 	center = Vector2(pp.x, pp.z)
@@ -67,7 +150,7 @@ func _zoom(k: float) -> void:
 
 func _fill_list() -> void:
 	UIKit.clear(list_box)
-	var items: Array = world.missions.all_markers()
+	var items: Array = _markers.duplicate()
 	items.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		if a["story"] != b["story"]:
 			return a["story"]
@@ -94,31 +177,14 @@ func _goto(p: Vector3) -> void:
 func _build_tex() -> ImageTexture:
 	if cached_tex != null:
 		return cached_tex
-	var n: int = 200
-	var img := Image.create(n, n, false, Image.FORMAT_RGB8)
-	var gen: WorldGen = world.gen
-	var step: float = WorldGen.HALF * 2.0 / float(n)
-	for j in n:
-		for i in n:
-			var x: float = -WorldGen.HALF + (float(i) + 0.5) * step
-			var z: float = -WorldGen.HALF + (float(j) + 0.5) * step
-			var h: float = gen.nat_h(x, z)
-			var reg: String = gen.region_at(x, z)
-			var c: Color
-			if h < 0.0:
-				c = Color(0.05, 0.12, 0.2).lerp(Color(0.1, 0.22, 0.34), clampf(1.0 + h / 30.0, 0.0, 1.0))
-			elif h < 1.5:
-				c = Color(0.55, 0.5, 0.38)
-			else:
-				match reg:
-					"city": c = Color(0.16, 0.17, 0.2)
-					"desert": c = Color(0.45, 0.38, 0.24)
-					"mountain": c = Color(0.28, 0.3, 0.28).lerp(Color(0.6, 0.6, 0.62), clampf(h / 160.0, 0.0, 1.0))
-					"forest": c = Color(0.1, 0.24, 0.12)
-					"industrial": c = Color(0.2, 0.2, 0.22)
-					_: c = Color(0.16, 0.28, 0.15)
-				c = c.lightened(clampf(h / 400.0, 0.0, 0.2))
-			img.set_pixel(i, j, c)
+	var img: Image
+	if _tex_task != -1:
+		WorkerThreadPool.wait_for_task_completion(_tex_task)     # already finished in the background in the normal case
+		_tex_task = -1
+		img = _tex_img
+		_tex_img = null
+	if img == null:
+		img = _render_image(world.gen)
 	cached_tex = ImageTexture.create_from_image(img)
 	return cached_tex
 
@@ -138,17 +204,14 @@ func _draw() -> void:
 	draw_rect(Rect2(tl, Vector2(sz, sz)), UIKit.RED, false, 2.0)
 	var gen: WorldGen = world.gen
 	_draw_zones(gen)
-	for e in gen.edges:
-		var pts: PackedVector3Array = e["pts"]
-		var k: String = e["kind"]
-		var step: int = 4 if zoom < 0.5 else 2
-		var arr := PackedVector2Array()
-		for i in range(0, pts.size(), step):
-			arr.append(_w2s(pts[i]))
-		arr.append(_w2s(pts[pts.size() - 1]))
+	# roads: pre-baked segment lists, ONE draw call per road kind, drawn through a world->screen transform (line width compensated)
+	var roads: Dictionary = _roads(gen, "far" if zoom < 0.5 else "near")
+	draw_set_transform(vs * 0.5 - center * zoom, 0.0, Vector2(zoom, zoom))
+	for k in roads:
 		var big: bool = k in ["avenue", "highway", "track"]
 		var col: Color = Hud.ROAD_COL.get(k, Color(0.5, 0.5, 0.55))
-		draw_polyline(arr, col, (3.0 if big else 1.5) * clampf(zoom * 4.0, 0.7, 2.0), true)
+		draw_multiline(roads[k], col, (3.0 if big else 1.5) * clampf(zoom * 4.0, 0.7, 2.0) / zoom, true)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	# route
 	var rt: PackedVector3Array = world.active_route()
 	if rt.size() > 1:
@@ -177,7 +240,7 @@ func _draw() -> void:
 					draw_circle(s, 3.0, Color(0.85, 0.85, 0.9))
 	hover_id = ""
 	var mp: Vector2 = get_local_mouse_position()
-	for m in world.missions.all_markers():
+	for m in _markers:
 		var s2: Vector2 = _w2s(m["pos"])
 		var col2: Color = MissionManager.TYPE_COLOR.get(m["type"], Color.WHITE)
 		if m["locked"]:
@@ -214,8 +277,10 @@ func _label(p: Vector2, t: String, size: int, col: Color) -> void:
 	draw_string(font, p, t, HORIZONTAL_ALIGNMENT_LEFT, -1, size, col)
 
 func _label_c(p: Vector2, t: String, size: int, col: Color) -> void:
-	var w: float = font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
-	_label(p - Vector2(w * 0.5, 0), t, size, col)
+	var key: String = "%s|%d" % [t, size]
+	if not _lbl_w.has(key):
+		_lbl_w[key] = font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+	_label(p - Vector2(float(_lbl_w[key]) * 0.5, 0), t, size, col)
 
 ## translucent district footprints on top of the terrain texture (world rectangles / circles)
 func _draw_zones(gen: WorldGen) -> void:

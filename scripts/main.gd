@@ -219,6 +219,19 @@ func _run_cmd(c: String) -> void:
 				line += "[" + hs + "] "
 			print("RAYP ", line)
 		return
+	if c.begins_with("hray_"):   # test: hray_<x0>_<z>_<y>  horizontal rays towards +X from x0 (lists up to 6 hits: x, collider, normal)
+		var hv: PackedStringArray = c.substr(5).split("_")
+		var sp3: PhysicsDirectSpaceState3D = world.get_world_3d().direct_space_state
+		var org := Vector3(float(hv[0]), float(hv[2]), float(hv[1]))
+		var ex2: Array = []
+		for k in range(6):
+			var q3 := PhysicsRayQueryParameters3D.create(org, org + Vector3(60, 0, 0), 0xFFFFFFFF, ex2)
+			var h3: Dictionary = sp3.intersect_ray(q3)
+			if h3.is_empty():
+				break
+			print("HRAY z=%s y=%s hit x=%.2f %s n=%s" % [hv[1], hv[2], (h3["position"] as Vector3).x, str(h3["collider"].name), str(h3["normal"])])
+			ex2.append(h3["rid"])
+		return
 	if c.begins_with("dropcar_"):   # test: dropcar_<x>_<z>  lowers the player car from 3 m above the circuit and prints where it settles
 		var dv: PackedStringArray = c.substr(8).split("_")
 		world.player_car.place_on_ground(Vector3(float(dv[0]), 13.5, float(dv[1])), 0.0)
@@ -274,6 +287,162 @@ func _run_cmd(c: String) -> void:
 			if c == "revgo" and k == 13:
 				Input.action_release("accelerate")
 			print("REV t=%.1f in_brake=%.2f act=%.2f rvsng=%s speed=%.2f playing=%s beepers=%d mode=%s" % [0.5 * (k + 1), rv.in_brake, Input.get_action_strength("brake"), str(rv.reversing), rv.speed, str(world.audio.rev_player != null and world.audio.rev_player.playing), get_tree().root.find_children("ReverseBeep", "AudioStreamPlayer3D", true, false).size(), world.mode])
+		return
+	if c.begins_with("surf_"):   # test: surf_<x>_<z>_<yawdeg>  teleports the car, full throttle for 6 s, prints surface / speed / grip / drag every second
+		var sv: PackedStringArray = c.substr(5).split("_")
+		var sx: float = float(sv[0])
+		var sz: float = float(sv[1])
+		world.player_car.place_on_ground(Vector3(sx, world.gen.ground_h(sx, sz) + 1.0, sz), deg_to_rad(float(sv[2])))
+		world.player_car.linear_velocity = Vector3.ZERO
+		world.cam.snap()
+		Input.action_press("accelerate")
+		for k in range(6):
+			await get_tree().create_timer(1.0).timeout
+			var sc2: Vehicle = world.player_car
+			print("SURF t=%d pos=(%.0f,%.0f) surface=%s on_road=%s speed=%.1f grip=%.2f drag=%.2f dmg=%.2f air=%.2f" % [k + 1, sc2.global_position.x, sc2.global_position.z, sc2.surface, str(sc2.on_road), sc2.abs_speed, sc2.surf_grip, sc2.surf_drag, sc2.damage, sc2.airborne_time])
+		Input.action_release("accelerate")
+		return
+	if c == "hltest":   # test: headlight state across the day, manual toggle, rain, vehicle switch; prints HL lines
+		var pc: Vehicle = world.player_car
+		var rep := func(tag: String) -> void:
+			var v: Vehicle = world.player_car
+			var vis: int = 0
+			var en: float = -1.0
+			for sp in v._spot:
+				if (sp as SpotLight3D).visible:
+					vis += 1
+				en = (sp as SpotLight3D).light_energy
+			print("HL %-22s hour=%5.2f night=%s on=%s user=%d spots=%d energy=%.1f fill=%s head_mat=%.2f veh=%s" % [tag, world.env.hour, str(world.env.is_night()), str(v.headlights_on), v.headlights_user, vis, en, str(v._fill != null and v._fill.visible), (v.model.get("head_mat") as StandardMaterial3D).emission_energy_multiplier if v.model.get("head_mat") else -1.0, v.vid])
+		for h in [9.0, 18.0, 18.9, 19.7, 20.9, 21.2, 22.0, 23.5, 1.0, 4.5, 6.2, 7.0]:
+			world.env.hour = h
+			await get_tree().create_timer(0.4).timeout
+			rep.call("auto h=%.1f" % h)
+		world.env.hour = 22.0
+		await get_tree().create_timer(0.4).timeout
+		Input.action_press("headlights"); await get_tree().create_timer(0.1).timeout; Input.action_release("headlights")
+		await get_tree().create_timer(0.4).timeout
+		rep.call("manual OFF at 22h")
+		Input.action_press("headlights"); await get_tree().create_timer(0.1).timeout; Input.action_release("headlights")
+		await get_tree().create_timer(0.4).timeout
+		rep.call("manual ON at 22h")
+		world.env.set_weather("heavy_rain", true)
+		await get_tree().create_timer(0.6).timeout
+		rep.call("heavy rain 22h")
+		world.env.hour = 12.0
+		await get_tree().create_timer(0.5).timeout
+		rep.call("noon (rain, flip day)")
+		world.env.hour = 21.5
+		await get_tree().create_timer(0.5).timeout
+		rep.call("21.5 rain")
+		world.player_car.damage = 0.0
+		return
+	if c.begins_with("gtest_"):   # test: gtest_<x>_<z>_<yaw>  drive from there with full throttle, 0.15 s log of position / speed / touched bodies until it stops
+		var gv: PackedStringArray = c.substr(6).split("_")
+		var gx: float = float(gv[0])
+		var gz: float = float(gv[1])
+		world.player_car.place_on_ground(Vector3(gx, world.gen.ground_h(gx, gz) + 1.0, gz), deg_to_rad(float(gv[2])))
+		world.player_car.linear_velocity = Vector3.ZERO
+		world.cam.snap()
+		Input.action_press("accelerate")
+		var stopped: int = 0
+		for k in range(90):
+			await get_tree().create_timer(0.15).timeout
+			var gc: Vehicle = world.player_car
+			var names: String = ""
+			for b in gc.get_colliding_bodies():
+				names += "%s(%s) " % [str(b.name), str((b as Node3D).global_position.snapped(Vector3.ONE * 0.1)) if b is Node3D else ""]
+			if gc.abs_speed > 1.5 or names != "":
+				print("GT t=%.2f pos=(%.2f,%.2f,%.2f) speed=%.1f dmg=%.2f touch=%s" % [0.15 * (k + 1), gc.global_position.x, gc.global_position.y, gc.global_position.z, gc.abs_speed, gc.damage, names])
+			if gc.abs_speed < 0.3 and k > 8:
+				stopped += 1
+				if stopped > 3:
+					break
+		Input.action_release("accelerate")
+		return
+	if c.begins_with("perf_"):   # test: perf_<fwd|rev|idle|map>[_seconds]  frame-cost profile (script process / physics ms, frame ms, nodes, draw calls) printed per second
+		var pv: PackedStringArray = c.substr(5).split("_")
+		var pmode: String = pv[0]
+		var psec: int = int(pv[1]) if pv.size() > 1 else 6
+		var pcar: Vehicle = world.player_car
+		if pmode == "fwd":
+			Input.action_press("accelerate")
+		elif pmode == "rev":
+			Input.action_press("brake")
+		for sec in range(psec):
+			var n: int = 0
+			var tp_sum: float = 0.0
+			var tp_max: float = 0.0
+			var ph_sum: float = 0.0
+			var ph_max: float = 0.0
+			var fr_max: float = 0.0
+			var t_end: int = Time.get_ticks_usec() + 1000000
+			var t_prev: int = Time.get_ticks_usec()
+			while Time.get_ticks_usec() < t_end:
+				await get_tree().process_frame
+				var tn: int = Time.get_ticks_usec()
+				fr_max = maxf(fr_max, float(tn - t_prev) / 1000.0)
+				t_prev = tn
+				var tp: float = Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
+				var ph: float = Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0
+				tp_sum += tp; tp_max = maxf(tp_max, tp)
+				ph_sum += ph; ph_max = maxf(ph_max, ph)
+				n += 1
+			print("PERF %s t=%d frames=%d process avg=%.2f max=%.2f ms | physics avg=%.2f max=%.2f ms | frame max=%.1f ms | nodes=%d objects=%d draws=%d prims=%d bodies=%d spd=%.1f" % [pmode, sec + 1, n, tp_sum / maxf(1.0, n), tp_max, ph_sum / maxf(1.0, n), ph_max, fr_max, int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)), int(Performance.get_monitor(Performance.OBJECT_COUNT)), int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)), int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME)), int(Performance.get_monitor(Performance.PHYSICS_3D_ACTIVE_OBJECTS)), world.player_car.speed])
+		Input.action_release("accelerate")
+		Input.action_release("brake")
+		return
+	if c == "mapperf":   # test: opens / closes the map 5 times and prints the cost of each open (call ms), first draw, steady redraw cost (script ms) and node / object counts
+		for i in range(5):
+			var t0: int = Time.get_ticks_usec()
+			var nodes0: int = int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT))
+			open_map()
+			var t1: int = Time.get_ticks_usec()
+			await get_tree().process_frame
+			var t2: int = Time.get_ticks_usec()
+			# steady cost of one redraw of the map (what a pan / zoom pays per frame)
+			var rd: float = 0.0
+			var mp: MapScreen = screen as MapScreen
+			for k in range(10):
+				var t3: int = Time.get_ticks_usec()
+				mp.notification(CanvasItem.NOTIFICATION_DRAW)
+				rd += float(Time.get_ticks_usec() - t3) / 1000.0
+			var t4: int = Time.get_ticks_usec()
+			_close_screen()
+			await get_tree().process_frame
+			print("MAPPERF open#%d call=%.1f ms first_frame=%.1f ms redraw(script only)=%.2f ms close=%.1f ms nodes +%d objects=%d" % [i + 1, float(t1 - t0) / 1000.0, float(t2 - t1) / 1000.0, rd / 10.0, float(Time.get_ticks_usec() - t4) / 1000.0, int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)) - nodes0, int(Performance.get_monitor(Performance.OBJECT_COUNT))])
+		return
+	if c == "streamprof":   # test: drives 12 s at full throttle from the current spot and prints chunk build (worker) / instantiate (main thread) cost
+		var st: TerrainStreamer = world.streamer
+		st.prof_inst.clear()
+		st.prof_build.clear()
+		Input.action_press("accelerate")
+		await get_tree().create_timer(12.0).timeout
+		Input.action_release("accelerate")
+		var pi: Array = st.prof_inst.duplicate()
+		var pb: Array = st.prof_build.duplicate()
+		pi.sort()
+		pb.sort()
+		if pi.is_empty():
+			print("STREAM no chunks loaded")
+		else:
+			print("STREAM chunks=%d  main-thread instantiate ms: avg=%.2f median=%.2f p90=%.2f max=%.2f | worker build ms: avg=%.1f max=%.1f" % [pi.size(), _avg(pi), pi[pi.size() / 2], pi[int(pi.size() * 0.9)], pi[pi.size() - 1], _avg(pb), pb[pb.size() - 1]])
+		return
+	if c == "buytest":   # test: sci-fi buggy purchase rules (insufficient funds, success, repeated press, persistence)
+		var id2: String = "scifi_buggy"
+		var price: int = int(Data.vehicle(id2)["price"])
+		Game.owned.erase(id2)
+		Game.money = price - 1
+		var r1: bool = Game.buy_vehicle(id2)
+		print("BUY insufficient: result=%s money=%d owned=%s (expect false, %d, false)" % [str(r1), Game.money, str(Game.owned.has(id2)), price - 1])
+		Game.money = price + 5000
+		var r2: bool = Game.buy_vehicle(id2)
+		var r3: bool = Game.buy_vehicle(id2)
+		print("BUY success+repeat: first=%s repeat=%s money=%d owned=%s (expect true,false,5000,true)" % [str(r2), str(r3), Game.money, str(Game.owned.has(id2))])
+		print("BUY dune owned from start=%s free=%s sell dune=%s sell scifi=%s" % [str(Game.owned.has("dune_buggy")), str(Data.is_free_vehicle("dune_buggy")), str(Game.sell_vehicle("dune_buggy")), str(Game.sell_vehicle(id2))])
+		Game.save_game()
+		Game.owned.clear()
+		Game.load_game()
+		print("BUY after save/load: scifi=%s dune=%s money=%d" % [str(Game.owned.has(id2)), str(Game.owned.has("dune_buggy")), Game.money])
 		return
 	if c == "kdbg":   # test: print the player car state 20 times, 0.25 s apart
 		for k in range(20):

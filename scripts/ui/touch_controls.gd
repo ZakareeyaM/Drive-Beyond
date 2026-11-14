@@ -72,6 +72,8 @@ func _active(b: Dictionary) -> bool:
 		return false
 	if b.get("needs_prompt", false) and world.prompt_text == "":
 		return false
+	if b["id"] in ["ind_l", "ind_r"] and not (world.player_car and bool(world.player_car.spec.get("kart", false))):
+		return false     # turn indicators exist on the racing go-karts only
 	if b["id"] == "nitro" and not (world.player_car and world.player_car.has_nitro):
 		return false
 	if b["id"] == "exit" and world.player_car and world.player_car.abs_speed > 4.0:

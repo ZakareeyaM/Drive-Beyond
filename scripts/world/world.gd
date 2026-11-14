@@ -461,6 +461,7 @@ func _begin_session() -> void:
 			var t_w: int = Time.get_ticks_msec()
 			await wu.run(self)
 			print("WARMUP pass %d done in %d ms" % [pass_i + 1, Time.get_ticks_msec() - t_w])
+	MapScreen.prewarm(gen)                                   # terrain image of the map is rendered on a worker thread while the rest loads
 	loading_progress.emit(0.95, "Preparing vehicle")
 	await get_tree().process_frame
 	if police == null:
@@ -768,11 +769,13 @@ func _handle_input(dt: float) -> void:
 			thr = 0.0
 		player_car.set_inputs(thr, brk, steer, hb, nit)
 		if Input.is_action_just_pressed("headlights"):
+			player_car.headlights_user = 0 if player_car.headlights_on else 1     # manual choice, kept until the next dusk / dawn
 			player_car.set_headlights(not player_car.headlights_on)
-		if Input.is_action_just_pressed("indicator_left"):
-			player_car.toggle_indicator(1)
-		if Input.is_action_just_pressed("indicator_right"):
-			player_car.toggle_indicator(2)
+		if bool(player_car.spec.get("kart", false)):     # indicators: go-karts only
+			if Input.is_action_just_pressed("indicator_left"):
+				player_car.toggle_indicator(1)
+			if Input.is_action_just_pressed("indicator_right"):
+				player_car.toggle_indicator(2)
 		if Input.is_action_just_pressed("reset_car"):
 			_reset_car()
 		audio.set_horn(Input.is_action_pressed("horn"))
@@ -791,12 +794,27 @@ func _handle_input(dt: float) -> void:
 		_open("pause")
 	if Input.is_action_just_pressed("interact") and exit_cooldown <= 0.0:
 		do_interact()
-	if env.is_night() != was_night:
-		was_night = env.is_night()
+	_sync_headlights()
+
+## The ONE place that decides the player's headlight state (replaces the old one-shot "flip" logic that missed vehicle
+## switches, kart loans and exits).  Idempotent every frame: wanted = manual override if set, else (auto setting and night).
+## The manual override is cleared at every dusk / dawn so the lights follow the clock again.
+func _sync_headlights() -> void:
+	var night: bool = env.is_night()
+	var auto: bool = bool(Game.settings.get("headlights_auto", true))
+	if night != was_night:
+		was_night = night
 		if station:
 			station.set_night(was_night)
-		if player_car and bool(Game.settings.get("headlights_auto", true)):
-			player_car.set_headlights(was_night)
+		if player_car:
+			player_car.headlights_user = -1
+	if player_car == null or mode != "drive":
+		return
+	var want: bool = night and auto
+	if player_car.headlights_user >= 0:
+		want = player_car.headlights_user == 1
+	if player_car.headlights_on != want:
+		player_car.set_headlights(want)
 
 ## test helper: put the player's car on a POI (id), heading yaw, with an optional local offset
 func test_teleport(poi_id: String, yaw: float, off: Vector3 = Vector3.ZERO) -> void:
